@@ -1,0 +1,30 @@
+case_id,activity,timestamp,user_id,amount,status,department,duration_minutes
+ORDER_001,Order Created,2024-01-15 09:00:00,john.doe,150.00,Open,Sales,0
+ORDER_001,Payment Received,2024-01-15 09:15:00,payment.system,150.00,Paid,Finance,15
+ORDER_001,Order Packed,2024-01-15 14:30:00,warehouse.staff,150.00,Packed,Warehouse,315
+ORDER_001,Order Shipped,2024-01-15 16:45:00,shipping.system,150.00,Shipped,Logistics,135
+ORDER_001,Order Delivered,2024-01-16 10:20:00,courier.service,150.00,Delivered,Logistics,1055
+ORDER_002,Order Created,2024-01-15 11:30:00,jane.smith,75.50,Open,Sales,0
+ORDER_002,Payment Received,2024-01-15 11:35:00,payment.system,75.50,Paid,Finance,5
+ORDER_002,Order Packed,2024-01-15 15:00:00,warehouse.staff,75.50,Packed,Warehouse,205
+ORDER_002,Order Shipped,2024-01-15 17:15:00,shipping.system,75.50,Shipped,Logistics,135
+ORDER_002,Order Delivered,2024-01-16 14:45:00,courier.service,75.50,Delivered,Logistics,1290
+ORDER_003,Order Created,2024-01-16 08:45:00,bob.wilson,299.99,Open,Sales,0
+ORDER_003,Payment Received,2024-01-16 08:50:00,payment.system,299.99,Paid,Finance,5
+ORDER_003,Order Packed,2024-01-16 13:20:00,warehouse.staff,299.99,Packed,Warehouse,270
+ORDER_003,Quality Check,2024-01-16 14:00:00,quality.control,299.99,Checked,Quality,40
+ORDER_003,Order Shipped,2024-01-16 16:30:00,shipping.system,299.99,Shipped,Logistics,150
+ORDER_003,Order Delivered,2024-01-17 11:15:00,courier.service,299.99,Delivered,Logistics,1125
+ORDER_004,Order Created,2024-01-16 14:20:00,alice.brown,89.95,Open,Sales,0
+ORDER_004,Payment Failed,2024-01-16 14:25:00,payment.system,89.95,Failed,Finance,5
+ORDER_004,Payment Retry,2024-01-16 15:30:00,alice.brown,89.95,Pending,Finance,65
+ORDER_004,Payment Received,2024-01-16 15:35:00,payment.system,89.95,Paid,Finance,5
+ORDER_004,Order Packed,2024-01-17 09:15:00,warehouse.staff,89.95,Packed,Warehouse,1040
+ORDER_004,Order Shipped,2024-01-17 11:30:00,shipping.system,89.95,Shipped,Logistics,135
+ORDER_005,Order Created,2024-01-17 10:00:00,charlie.davis,199.99,Open,Sales,0
+ORDER_005,Payment Received,2024-01-17 10:05:00,payment.system,199.99,Paid,Finance,5
+ORDER_005,Order Packed,2024-01-17 14:45:00,warehouse.staff,199.99,Packed,Warehouse,280
+ORDER_005,Order Shipped,2024-01-17 16:00:00,shipping.system,199.99,Shipped,Logistics,75
+ORDER_005,Delivery Failed,2024-01-18 09:30:00,courier.service,199.99,Failed,Logistics,1050
+ORDER_005,Delivery Retry,2024-01-18 15:45:00,courier.service,199.99,In Transit,Logistics,375
+ORDER_005,Order Delivered,2024-01-19 12:20:00,courier.service,199.99,Delivered,Logistics,1255

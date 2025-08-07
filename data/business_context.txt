@@ -1,0 +1,47 @@
+Business Process Context: E-commerce Order Fulfillment
+
+PROCESS OVERVIEW:
+This data represents the order fulfillment process for an e-commerce company. The process starts when a customer places an order and ends when the order is delivered to the customer.
+
+PROCESS STEPS:
+1. Order Created - Customer places an order on the website
+2. Payment Processing - Payment is processed (may fail and require retry)
+3. Order Packing - Warehouse staff picks and packs the items
+4. Quality Check - Optional quality control for high-value items
+5. Order Shipping - Package is handed over to shipping carrier
+6. Order Delivery - Package is delivered to customer (may fail and require retry)
+
+BUSINESS OBJECTIVES:
+- Reduce order fulfillment time from order creation to delivery
+- Minimize payment failures and abandoned orders
+- Identify bottlenecks in the warehouse and shipping processes
+- Improve delivery success rates
+- Analyze process variations for different order values and customer types
+
+KEY PERFORMANCE INDICATORS:
+- Order-to-delivery cycle time
+- Payment success rate
+- Warehouse processing time
+- Shipping carrier performance
+- First-time delivery success rate
+
+PROCESS VARIANTS:
+- High-value orders (>$200) require quality checks
+- Failed payments trigger retry processes
+- Failed deliveries trigger redelivery attempts
+- Different shipping methods for different regions
+
+DATA SOURCES:
+- Order management system (order creation, status updates)
+- Payment processing system (payment transactions)
+- Warehouse management system (picking, packing activities)
+- Shipping system (tracking information)
+- Customer service system (delivery confirmations, issues)
+
+ANALYSIS GOALS:
+We want to create an event log that will help us:
+1. Identify the most common process paths
+2. Find bottlenecks and delays in the process
+3. Compare performance across different order types
+4. Analyze the impact of failed payments and deliveries
+5. Optimize warehouse and shipping operations
