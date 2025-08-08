@@ -77,7 +77,8 @@ class OutputManager:
         data_sources: List[str], 
         analysis_type: str = "assessment",
         custom_name: Optional[str] = None,
-        file_extension: str = "yaml"
+        file_extension: str = "yaml",
+        include_timestamp: bool = True
     ) -> str:
         """Generate a contextual filename based on analysis details.
         
@@ -86,6 +87,7 @@ class OutputManager:
             analysis_type: Type of analysis performed
             custom_name: Optional custom base name
             file_extension: File extension (without dot)
+            include_timestamp: Whether to include timestamp for uniqueness
             
         Returns:
             Intelligently generated filename
@@ -105,8 +107,11 @@ class OutputManager:
             else:
                 base_name = analysis_type
         
-        # Add timestamp for uniqueness
-        filename = f"{base_name}_{self.current_date}_{self.current_time}.{file_extension}"
+        # Add timestamp for uniqueness only if requested
+        if include_timestamp:
+            filename = f"{base_name}_{self.current_date}_{self.current_time}.{file_extension}"
+        else:
+            filename = f"{base_name}.{file_extension}"
         return filename
     
     def _clean_filename(self, filename: str) -> str:
@@ -143,7 +148,8 @@ class OutputManager:
         analysis_type: str = "assessment", 
         custom_name: Optional[str] = None,
         output_format: str = "yaml",
-        use_date_folder: bool = True
+        use_date_folder: bool = True,
+        include_timestamp: bool = True
     ) -> Path:
         """Get the full output path for a file.
         
@@ -153,12 +159,13 @@ class OutputManager:
             custom_name: Optional custom filename base
             output_format: Output file format
             use_date_folder: Whether to use date-based folder organization
+            include_timestamp: Whether to include timestamp in filename
             
         Returns:
             Full path where file should be saved
         """
         filename = self.generate_contextual_filename(
-            data_sources, analysis_type, custom_name, output_format
+            data_sources, analysis_type, custom_name, output_format, include_timestamp
         )
         
         if use_date_folder:
@@ -196,7 +203,8 @@ class OutputManager:
             Path where file was saved
         """
         output_path = self.get_output_path(
-            data_sources, "assessment", custom_name, output_format
+            data_sources, "assessment", custom_name, output_format, 
+            use_date_folder=True, include_timestamp=keep_history
         )
         
         # Archive previous file if it exists and keep_history is True

@@ -51,7 +51,7 @@ class EventLogAnalyzer:
         ai_insights: Dict[str, Any],
         business_context: str
     ) -> Dict[str, Any]:
-        """Generate streamlined process mining assessment focused on core elements.
+        """Generate business-focused process mining assessment with executive summary.
         
         Args:
             datasets: List of dataset information
@@ -60,63 +60,424 @@ class EventLogAnalyzer:
             business_context: Business context description
             
         Returns:
-            Streamlined assessment focused on UIDs, activities, and attributes
+            Business-focused assessment with executive summary and technical details
         """
-        logger.info("Generating streamlined process mining assessment")
+        logger.info("Generating business-focused process mining assessment")
         
-        # CORE VALUE 1: Identify potential UIDs (Case IDs)
+        # Extract business insights from AI or generate fallback
+        if ai_insights and 'business_process_analysis' in ai_insights:
+            business_analysis = ai_insights['business_process_analysis']
+            readiness_scores = ai_insights.get('readiness_assessment', {})
+            recommendations = ai_insights.get('actionable_recommendations', [])
+            sql_code = ai_insights.get('working_sql', self._generate_working_sql(datasets))
+            business_value = ai_insights.get('business_value', 'Process mining analysis will provide insights into process efficiency and improvement opportunities')
+            next_steps = ai_insights.get('next_steps', [])
+            data_concerns = ai_insights.get('data_quality_concerns', [])
+            mining_potential = ai_insights.get('process_mining_potential', 'Assessment pending')
+        else:
+            # Enhanced fallback with business intelligence
+            fallback = self._generate_enhanced_business_fallback(datasets)
+            business_analysis = fallback['business_process_analysis']
+            readiness_scores = fallback['readiness_score']
+            recommendations = fallback['actionable_recommendations']
+            sql_code = fallback['working_sql']
+            business_value = fallback['business_value']
+            next_steps = fallback['next_steps']
+            data_concerns = fallback['data_quality_concerns']
+            mining_potential = fallback['process_mining_potential']
+        
+        # Core technical analysis (existing functionality)
         case_id_candidates = self._compile_case_id_candidates(datasets, schema_info, ai_insights)
-        
-        # CORE VALUE 2: Identify activities/events with timestamps
         activity_analysis = self._compile_activity_analysis(datasets, schema_info, ai_insights)
         timestamp_analysis = self._compile_timestamp_analysis(datasets, schema_info, ai_insights)
-        
-        # CORE VALUE 3: Identify attributes for context
         case_attributes, event_attributes = self._compile_attributes(datasets, case_id_candidates, 
                                                                    activity_analysis.get('activity_candidates', []), 
                                                                    timestamp_analysis.get('timestamp_candidates', []),
                                                                    schema_info)
         
-        # Generate SQL for immediate use
-        suggested_sql = self._generate_suggested_sql(
-            case_id_candidates,
-            activity_analysis.get('activity_candidates', []),
-            timestamp_analysis.get('timestamp_candidates', []),
-            datasets
-        )
-        
-        # Simple readiness check
+        # Generate readiness assessment
         readiness = self._assess_readiness(datasets, ai_insights)
         data_quality = self._assess_data_quality(datasets)
         
-        # Streamlined assessment output
+        # Build enhanced assessment with executive summary
         assessment = {
-            'metadata': {
-                'generated_at': datetime.now().isoformat(),
-                'files_analyzed': [d.get('file_path') for d in datasets]
+            'executive_summary': {
+                'process_type': business_analysis.get('process_type', 'Unknown Business Process'),
+                'confidence': f"{business_analysis.get('confidence', 0.1):.0%}",
+                'readiness_score': f"{readiness_scores.get('overall_score', readiness.get('overall_score', 0))}/10",
+                'mining_potential': mining_potential,
+                'key_finding': self._get_key_finding(datasets, readiness_scores, case_id_candidates, timestamp_analysis),
+                'primary_recommendation': recommendations[0] if recommendations else "Manual data review required",
+                'timeline_estimate': self._estimate_timeline(readiness_scores),
+                'business_value': business_value
             },
             
-            # Core findings - what the user needs
-            'case_id_candidates': case_id_candidates[:5],  # Top 5 potential UIDs
-            'activity_candidates': activity_analysis.get('activity_candidates', [])[:5],  # Top 5 activities
-            'timestamp_candidates': timestamp_analysis.get('timestamp_candidates', [])[:5],  # Top 5 timestamps
+            'business_assessment': {
+                'process_identification': {
+                    'identified_process': business_analysis.get('process_type', 'Unknown'),
+                    'confidence_level': business_analysis.get('confidence', 0.1),
+                    'reasoning': business_analysis.get('reasoning', 'Limited data for process identification')
+                },
+                'mining_readiness': {
+                    'overall_score': readiness_scores.get('overall_score', readiness.get('overall_score', 0)),
+                    'case_id_quality': readiness_scores.get('case_id_quality', 0),
+                    'activity_quality': readiness_scores.get('activity_quality', 0),
+                    'timestamp_quality': readiness_scores.get('timestamp_quality', 0),
+                    'data_completeness': readiness_scores.get('data_completeness', self._calculate_data_completeness(datasets)),
+                    'breakdown_explanation': readiness_scores.get('reasoning', 'Assessment based on rule-based analysis')
+                },
+                'immediate_actions': recommendations[:3] if recommendations else [
+                    "Review data structure with business stakeholders",
+                    "Identify clear case ID and activity definitions", 
+                    "Obtain timestamp data for temporal analysis"
+                ],
+                'data_issues_summary': data_concerns if data_concerns else data_quality.get('issues', []),
+                'next_steps': next_steps[:5] if next_steps else [
+                    "Validate findings with domain experts",
+                    "Plan proof-of-concept analysis",
+                    "Define success metrics"
+                ]
+            },
             
-            'case_attributes': case_attributes[:10],  # Case-level context attributes
-            'event_attributes': event_attributes[:10],  # Event-level context attributes
+            'technical_details': {
+                'metadata': {
+                    'generated_at': datetime.now().isoformat(),
+                    'files_analyzed': [d.get('file_path') for d in datasets],
+                    'analysis_method': 'AI-enhanced' if ai_insights and 'business_process_analysis' in ai_insights else 'rule-based fallback'
+                },
+                'case_id_candidates': case_id_candidates[:5],  # Top 5 potential UIDs
+                'activity_candidates': activity_analysis.get('activity_candidates', [])[:5],
+                'timestamp_candidates': timestamp_analysis.get('timestamp_candidates', [])[:5],
+                'case_attributes': case_attributes[:10],  # Top 10 case attributes
+                'event_attributes': event_attributes[:10],  # Top 10 event attributes
+                'suggested_sql': sql_code,
+                'readiness': {
+                    'ready': readiness.get('ready', False),
+                    'missing_elements': readiness.get('missing_elements', [])
+                },
+                'data_issues': data_quality.get('issues', [])
+            },
             
-            # Actionable output
-            'suggested_sql': suggested_sql,
-            
-            # Simple status
-            'readiness': readiness,
-            'data_issues': data_quality.get('issues', []),
-            
-            # Optional AI insights
-            'ai_insights': ai_insights.get('next_steps', []) if ai_insights.get('ai_analysis') else []
+            'ai_insights': ai_insights if ai_insights else []
         }
         
-        logger.info("Streamlined assessment completed")
-        return _convert_numpy_types(assessment)
+        # Convert numpy types for YAML serialization
+        return self._convert_numpy_types(assessment)
+
+    def _convert_numpy_types(self, obj):
+        """Recursively convert numpy types to Python native types for YAML serialization."""
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, dict):
+            return {key: self._convert_numpy_types(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_numpy_types(item) for item in obj]
+        elif pd.isna(obj):
+            return None
+        else:
+            return obj
+
+    def _generate_enhanced_business_fallback(self, datasets: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Generate enhanced fallback analysis with business intelligence."""
+        logger.info("Generating enhanced business fallback analysis")
+        
+        # Infer business process type
+        process_type = self._infer_process_type_from_data(datasets)
+        
+        # Calculate readiness scores
+        readiness_scores = self._calculate_detailed_readiness(datasets)
+        
+        # Generate business recommendations
+        recommendations = self._generate_business_recommendations_fallback(datasets, process_type)
+        
+        # Generate working SQL
+        working_sql = self._generate_working_sql(datasets)
+        
+        return {
+            'business_process_analysis': {
+                'process_type': process_type['name'],
+                'confidence': process_type['confidence'],
+                'reasoning': process_type['reasoning']
+            },
+            'readiness_score': readiness_scores,
+            'actionable_recommendations': recommendations,
+            'working_sql': working_sql,
+            'business_value': f"Process mining this {process_type['name'].lower()} could reveal efficiency improvements and process optimization opportunities",
+            'next_steps': [
+                "Validate process identification with business stakeholders",
+                "Review data quality issues identified",
+                "Plan proof-of-concept process mining analysis"
+            ],
+            'data_quality_concerns': self._identify_data_quality_concerns(datasets),
+            'process_mining_potential': self._assess_mining_potential_fallback(readiness_scores)
+        }
+
+    def _infer_process_type_from_data(self, datasets: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Infer business process type from data patterns."""
+        
+        # Process indicators based on common business processes
+        process_indicators = {
+            'Incident Management': ['incident', 'ticket', 'event', 'status', 'priority', 'assigned', 'mis', 'service', 'issue'],
+            'Order Management': ['order', 'customer', 'product', 'quantity', 'shipment', 'delivery', 'invoice'],
+            'Procurement': ['purchase', 'vendor', 'supplier', 'contract', 'approval', 'procurement', 'buying'],
+            'HR Process': ['employee', 'hiring', 'performance', 'leave', 'payroll', 'training', 'staff'],
+            'Finance Process': ['payment', 'invoice', 'account', 'transaction', 'budget', 'billing', 'financial'],
+            'Manufacturing': ['production', 'machine', 'quality', 'batch', 'manufacturing', 'assembly'],
+            'Logistics': ['shipment', 'warehouse', 'transport', 'delivery', 'logistics', 'supply']
+        }
+        
+        scores = {}
+        evidence = {}
+        
+        for process_name, keywords in process_indicators.items():
+            score = 0
+            found_evidence = []
+            
+            for dataset in datasets:
+                # Check file path
+                file_path = dataset.get('file_path', '').lower()
+                for keyword in keywords:
+                    if keyword in file_path:
+                        score += 3  # File name evidence is weighted higher
+                        found_evidence.append(f"filename: '{keyword}'")
+                
+                # Check column names
+                if dataset.get('data') is not None:
+                    columns = [str(col).lower() for col in dataset['data'].columns]
+                    for keyword in keywords:
+                        matching_cols = [col for col in columns if keyword in col]
+                        score += len(matching_cols)
+                        found_evidence.extend([f"column: '{col}'" for col in matching_cols])
+            
+            scores[process_name] = score
+            evidence[process_name] = found_evidence[:5]  # Keep top 5 pieces of evidence
+        
+        # Find best match
+        if not scores or max(scores.values()) == 0:
+            return {
+                'name': 'Unknown Business Process',
+                'confidence': 0.1,
+                'reasoning': 'Insufficient data patterns to identify specific business process type'
+            }
+        
+        best_process = max(scores, key=scores.get)
+        best_score = scores[best_process]
+        confidence = min(best_score / 10.0, 1.0)  # Normalize to 0-1
+        
+        evidence_text = ', '.join(evidence[best_process]) if evidence[best_process] else 'general data patterns'
+        
+        return {
+            'name': best_process,
+            'confidence': confidence,
+            'reasoning': f"Identified {best_score} indicators for {best_process.lower()}. Evidence: {evidence_text}"
+        }
+
+    def _calculate_detailed_readiness(self, datasets: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Calculate detailed readiness scores for process mining."""
+        
+        if not datasets:
+            return {
+                'overall_score': 0,
+                'case_id_quality': 0,
+                'activity_quality': 0,
+                'timestamp_quality': 0,
+                'data_completeness': 0,
+                'reasoning': 'No datasets available for analysis'
+            }
+        
+        case_id_score = 0
+        activity_score = 0
+        timestamp_score = 0
+        completeness_scores = []
+        
+        for dataset in datasets:
+            if dataset.get('data') is None:
+                continue
+            
+            columns = [str(col).lower() for col in dataset['data'].columns]
+            
+            # Case ID assessment
+            case_id_indicators = ['id', 'number', 'key', 'reference', 'event id', 'case', 'incident']
+            case_id_matches = sum(1 for col in columns for indicator in case_id_indicators if indicator in col)
+            case_id_score += min(case_id_matches, 3)  # Cap at 3 points per dataset
+            
+            # Activity assessment
+            activity_indicators = ['status', 'state', 'activity', 'event', 'action', 'step', 'stage']
+            activity_matches = sum(1 for col in columns for indicator in activity_indicators if indicator in col)
+            activity_score += min(activity_matches, 3)
+            
+            # Timestamp assessment
+            timestamp_indicators = ['date', 'time', 'timestamp', 'created', 'updated', 'modified', 'when']
+            timestamp_matches = sum(1 for col in columns for indicator in timestamp_indicators if indicator in col)
+            timestamp_score += min(timestamp_matches, 3)
+            
+            # Data completeness
+            if hasattr(dataset['data'], 'isnull'):
+                total_cells = dataset['data'].shape[0] * dataset['data'].shape[1]
+                if total_cells > 0:
+                    missing_cells = dataset['data'].isnull().sum().sum()
+                    completeness = ((total_cells - missing_cells) / total_cells) * 100
+                    completeness_scores.append(completeness)
+        
+        # Normalize scores to 0-10 scale
+        num_datasets = len([d for d in datasets if d.get('data') is not None])
+        
+        if num_datasets > 0:
+            case_id_final = min((case_id_score / num_datasets) * 3.33, 10)  # Scale to 10
+            activity_final = min((activity_score / num_datasets) * 3.33, 10)
+            timestamp_final = min((timestamp_score / num_datasets) * 3.33, 10)
+            completeness_final = sum(completeness_scores) / len(completeness_scores) / 10 if completeness_scores else 0
+        else:
+            case_id_final = activity_final = timestamp_final = completeness_final = 0
+        
+        overall = (case_id_final + activity_final + timestamp_final + completeness_final) / 4
+        
+        return {
+            'overall_score': round(overall, 1),
+            'case_id_quality': round(case_id_final, 1),
+            'activity_quality': round(activity_final, 1),
+            'timestamp_quality': round(timestamp_final, 1),
+            'data_completeness': round(completeness_final, 1),
+            'reasoning': f"Assessed {num_datasets} datasets for process mining readiness"
+        }
+
+    def _generate_business_recommendations_fallback(self, datasets: List[Dict[str, Any]], process_type: Dict[str, Any]) -> List[str]:
+        """Generate business-focused recommendations."""
+        recommendations = []
+        
+        # Process-specific recommendations
+        process_name = process_type['name'].lower()
+        if 'incident' in process_name:
+            recommendations.extend([
+                "Focus on incident resolution lifecycle and SLA compliance",
+                "Identify bottlenecks in assignment and escalation processes"
+            ])
+        elif 'order' in process_name:
+            recommendations.extend([
+                "Analyze order fulfillment cycle time and delivery performance",
+                "Identify opportunities to streamline order processing"
+            ])
+        elif 'procurement' in process_name:
+            recommendations.extend([
+                "Examine purchase approval workflows and vendor performance",
+                "Optimize procurement cycle time and cost efficiency"
+            ])
+        
+        # Data quality recommendations
+        has_timestamps = any('date' in str(col).lower() or 'time' in str(col).lower()
+                           for dataset in datasets if dataset.get('data') is not None
+                           for col in dataset['data'].columns)
+        
+        if not has_timestamps:
+            recommendations.insert(0, "CRITICAL: Obtain timestamp data to enable process flow analysis")
+        
+        # General recommendations
+        recommendations.extend([
+            "Validate case ID definitions with business stakeholders",
+            "Confirm activity names represent meaningful business events",
+            "Plan proof-of-concept process mining analysis with limited scope"
+        ])
+        
+        return recommendations[:8]
+
+    def _identify_data_quality_concerns(self, datasets: List[Dict[str, Any]]) -> List[str]:
+        """Identify specific data quality issues."""
+        concerns = []
+        
+        for dataset in datasets:
+            if dataset.get('data') is None:
+                continue
+                
+            file_name = self._get_clean_filename(dataset.get('file_path', 'dataset'))
+            
+            # Check for high missing data
+            if hasattr(dataset['data'], 'isnull'):
+                total_cells = dataset['data'].shape[0] * dataset['data'].shape[1]
+                if total_cells > 0:
+                    missing_cells = dataset['data'].isnull().sum().sum()
+                    missing_pct = (missing_cells / total_cells) * 100
+                    if missing_pct > 30:
+                        concerns.append(f"High missing data in {file_name}: {missing_pct:.1f}%")
+            
+            # Check for unnamed/problematic columns
+            columns = list(dataset['data'].columns)
+            unnamed_cols = [col for col in columns if 'unnamed' in str(col).lower()]
+            if unnamed_cols:
+                concerns.append(f"Unnamed columns in {file_name}: {len(unnamed_cols)} columns need proper names")
+        
+        return concerns
+
+    def _assess_mining_potential_fallback(self, readiness_scores: Dict[str, Any]) -> str:
+        """Assess overall process mining potential."""
+        score = readiness_scores.get('overall_score', 0)
+        
+        if score >= 7:
+            return "High - Good foundation for immediate process mining analysis"
+        elif score >= 4:
+            return "Medium - Requires data improvements but viable with effort"
+        else:
+            return "Low - Significant data quality issues need resolution first"
+
+    def _get_key_finding(self, datasets: List[Dict[str, Any]], readiness_scores: Dict[str, Any], case_id_candidates: List[Dict], timestamp_analysis: Dict[str, Any]) -> str:
+        """Generate key finding summary."""
+        
+        # Check critical elements
+        has_case_ids = len(case_id_candidates) > 0
+        has_timestamps = len(timestamp_analysis.get('timestamp_candidates', [])) > 0
+        overall_score = readiness_scores.get('overall_score', 0)
+        
+        if not has_timestamps:
+            return "Critical Issue: No timestamp data found - process mining requires temporal information"
+        elif not has_case_ids:
+            return "Major Issue: No clear case identifiers found - need to define process instances"
+        elif overall_score >= 7:
+            return "Good foundation for process mining - data structure supports analysis"
+        elif overall_score >= 4:
+            return "Moderate readiness - data improvements needed but analysis is feasible"
+        else:
+            return "Significant data quality issues require resolution before process mining"
+
+    def _estimate_timeline(self, readiness_scores: Dict[str, Any]) -> str:
+        """Estimate timeline for process mining readiness."""
+        score = readiness_scores.get('overall_score', 0)
+        
+        if score >= 8:
+            return "Ready now - can begin analysis immediately"
+        elif score >= 6:
+            return "1-2 weeks - minor data preparation needed"
+        elif score >= 4:
+            return "2-4 weeks - moderate data quality improvements required"
+        else:
+            return "4+ weeks - significant data preparation and quality work needed"
+
+    def _calculate_data_completeness(self, datasets: List[Dict[str, Any]]) -> float:
+        """Calculate overall data completeness percentage."""
+        if not datasets:
+            return 0.0
+        
+        completeness_scores = []
+        
+        for dataset in datasets:
+            if dataset.get('data') is not None and hasattr(dataset['data'], 'isnull'):
+                total_cells = dataset['data'].shape[0] * dataset['data'].shape[1]
+                if total_cells > 0:
+                    missing_cells = dataset['data'].isnull().sum().sum()
+                    completeness = ((total_cells - missing_cells) / total_cells) * 100
+                    completeness_scores.append(completeness)
+        
+        return round(sum(completeness_scores) / len(completeness_scores), 1) if completeness_scores else 0.0
+
+    def _get_clean_filename(self, file_path: str) -> str:
+        """Extract clean filename from path."""
+        if '#' in file_path:
+            # Handle Excel tab references
+            return file_path.split('/')[-1] if '/' in file_path else file_path
+        else:
+            return file_path.split('/')[-1] if '/' in file_path else file_path
     
 
     
@@ -858,3 +1219,234 @@ ORDER BY e.case_id, e.event_time;
             }
         except Exception:
             return {}
+
+    def _generate_working_sql(self, datasets: List[Dict[str, Any]]) -> str:
+        """Generate working SQL that uses actual detected column names."""
+        
+        if not datasets:
+            return "-- No datasets available for SQL generation"
+        
+        # Find the primary dataset (usually the one with most rows and useful columns)
+        primary_dataset = self._find_primary_dataset(datasets)
+        
+        if not primary_dataset or primary_dataset.get('data') is None:
+            return "-- No suitable dataset found for SQL generation"
+        
+        data = primary_dataset['data']
+        columns = list(data.columns)
+        
+        # Find actual column names for key elements
+        case_id_col = self._find_best_column_match(columns, ['id', 'number', 'key', 'event id', 'case', 'incident'])
+        activity_col = self._find_best_column_match(columns, ['status', 'state', 'activity', 'event', 'action'])
+        timestamp_col = self._find_best_column_match(columns, ['date', 'time', 'timestamp', 'created', 'updated'])
+        
+        # Generate clean table name
+        table_name = self._generate_clean_table_name(primary_dataset.get('file_path', 'data_table'))
+        
+        # Build SQL components
+        sql_parts = []
+        sql_parts.append("-- Process Mining Event Log SQL")
+        sql_parts.append(f"-- Generated from: {self._get_clean_filename(primary_dataset.get('file_path', 'unknown'))}")
+        sql_parts.append(f"-- Analysis date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        sql_parts.append(f"-- Rows in source: {len(data):,}")
+        sql_parts.append("")
+        
+        # Add data quality notes
+        if hasattr(data, 'isnull'):
+            missing_pct = (data.isnull().sum().sum() / (data.shape[0] * data.shape[1])) * 100
+            sql_parts.append(f"-- Data quality: {100-missing_pct:.1f}% complete ({missing_pct:.1f}% missing)")
+        
+        sql_parts.append("")
+        sql_parts.append("SELECT")
+        
+        # Case ID column
+        if case_id_col:
+            sql_parts.append(f"    [{case_id_col}] as case_id,")
+            sql_parts.append(f"    -- Business meaning: Unique identifier for each process instance")
+        else:
+            sql_parts.append("    -- ⚠️  No clear case ID found - manual review required")
+            sql_parts.append("    [COLUMN_NAME] as case_id,  -- TODO: Replace with actual case ID column")
+        
+        # Activity column
+        if activity_col:
+            sql_parts.append(f"    [{activity_col}] as activity,")
+            sql_parts.append(f"    -- Business meaning: What happened in the process")
+        else:
+            sql_parts.append("    -- ⚠️  No clear activity found - manual review required")
+            sql_parts.append("    [COLUMN_NAME] as activity,  -- TODO: Replace with actual activity column")
+        
+        # Timestamp column
+        if timestamp_col:
+            sql_parts.append(f"    [{timestamp_col}] as timestamp,")
+            sql_parts.append(f"    -- Business meaning: When the activity occurred")
+        else:
+            sql_parts.append("    -- ❌ CRITICAL: No timestamp found - process mining requires temporal data")
+            sql_parts.append("    ROW_NUMBER() OVER (PARTITION BY case_id ORDER BY case_id) as event_sequence,")
+            sql_parts.append("    -- TODO: Request timestamp data from system administrators")
+        
+        # Additional useful columns (attributes)
+        other_useful_cols = self._find_useful_attribute_columns(columns, [case_id_col, activity_col, timestamp_col])
+        if other_useful_cols:
+            sql_parts.append("    ")
+            sql_parts.append("    -- Additional attributes for analysis:")
+            for col in other_useful_cols[:5]:  # Limit to top 5
+                sql_parts.append(f"    [{col}],")
+        
+        # Remove last comma
+        if sql_parts[-1].endswith(','):
+            sql_parts[-1] = sql_parts[-1][:-1]
+        
+        sql_parts.append("")
+        sql_parts.append(f"FROM [{table_name}]")
+        
+        # Add WHERE conditions
+        where_conditions = []
+        if case_id_col:
+            where_conditions.append(f"[{case_id_col}] IS NOT NULL")
+        
+        if timestamp_col:
+            where_conditions.append(f"[{timestamp_col}] IS NOT NULL")
+        
+        if where_conditions:
+            sql_parts.append("WHERE " + " AND ".join(where_conditions))
+        
+        # Add ORDER BY
+        if timestamp_col:
+            sql_parts.append(f"ORDER BY case_id, [{timestamp_col}];")
+        else:
+            sql_parts.append("ORDER BY case_id, event_sequence;")
+        
+        # Add implementation notes
+        sql_parts.extend([
+            "",
+            "-- Implementation Notes:",
+            "-- 1. Validate column mappings with business stakeholders",
+            "-- 2. Test query with small sample first", 
+            "-- 3. Add data quality filters as needed",
+            "-- 4. Consider case and event attribute selection",
+            ""
+        ])
+        
+        # Add business context
+        if case_id_col and activity_col:
+            sql_parts.extend([
+                "-- Expected Business Value:",
+                "-- • Process flow visualization and analysis",
+                "-- • Bottleneck identification and cycle time analysis", 
+                "-- • Compliance and variance detection",
+                "-- • Performance improvement opportunities"
+            ])
+        else:
+            sql_parts.extend([
+                "-- Next Steps Required:",
+                "-- • Identify proper case ID and activity columns",
+                "-- • Obtain timestamp data for temporal analysis",
+                "-- • Validate business meaning with domain experts"
+            ])
+        
+        return "\n".join(sql_parts)
+
+    def _find_primary_dataset(self, datasets: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Find the most suitable dataset for SQL generation."""
+        
+        scored_datasets = []
+        
+        for dataset in datasets:
+            if dataset.get('data') is None:
+                continue
+            
+            score = 0
+            data = dataset['data']
+            columns = [str(col).lower() for col in data.columns]
+            
+            # Score based on useful columns
+            useful_indicators = ['id', 'status', 'date', 'event', 'activity', 'time']
+            for indicator in useful_indicators:
+                if any(indicator in col for col in columns):
+                    score += 1
+            
+            # Score based on data size (more rows = more useful)
+            score += min(len(data) / 1000, 5)  # Cap at 5 points for size
+            
+            # Penalty for too many unnamed columns
+            unnamed_count = sum(1 for col in data.columns if 'unnamed' in str(col).lower())
+            score -= unnamed_count * 0.5
+            
+            scored_datasets.append((score, dataset))
+        
+        if not scored_datasets:
+            return None
+        
+        # Return highest scoring dataset
+        scored_datasets.sort(reverse=True, key=lambda x: x[0])
+        return scored_datasets[0][1]
+
+    def _find_best_column_match(self, columns: List[str], indicators: List[str]) -> Optional[str]:
+        """Find the best column matching the given indicators."""
+        
+        # First pass: exact matches
+        for indicator in indicators:
+            for col in columns:
+                if indicator.lower() == col.lower():
+                    return col
+        
+        # Second pass: partial matches
+        for indicator in indicators:
+            for col in columns:
+                if indicator.lower() in col.lower():
+                    return col
+        
+        return None
+
+    def _generate_clean_table_name(self, file_path: str) -> str:
+        """Generate a clean table name from file path."""
+        
+        if '#' in file_path:
+            # Handle Excel tab reference
+            parts = file_path.split('#')
+            base_name = parts[0].split('/')[-1] if '/' in parts[0] else parts[0]
+            tab_name = parts[1] if len(parts) > 1 else ''
+            
+            # Clean base name
+            base_clean = base_name.split('.')[0].replace(' ', '_').replace('-', '_')
+            tab_clean = tab_name.replace(' ', '_').replace('-', '_')
+            
+            return f"{base_clean}_{tab_clean}" if tab_clean else base_clean
+        else:
+            # Regular file
+            file_name = file_path.split('/')[-1] if '/' in file_path else file_path
+            table_name = file_name.split('.')[0]  # Remove extension
+            return table_name.replace(' ', '_').replace('-', '_')
+
+    def _find_useful_attribute_columns(self, all_columns: List[str], exclude_columns: List[str]) -> List[str]:
+        """Find columns that would be useful as case or event attributes."""
+        
+        # Remove None values from exclude list
+        exclude_set = {col for col in exclude_columns if col is not None}
+        
+        useful_columns = []
+        
+        for col in all_columns:
+            if col in exclude_set:
+                continue
+            
+            col_lower = str(col).lower()
+            
+            # Skip obviously useless columns
+            if any(skip in col_lower for skip in ['unnamed', 'index', 'level_']):
+                continue
+            
+            # Prefer columns with business meaning
+            business_indicators = [
+                'user', 'person', 'owner', 'assigned', 'responsible',
+                'priority', 'category', 'type', 'department', 'team',
+                'customer', 'product', 'service', 'location', 'region',
+                'amount', 'value', 'cost', 'price', 'quantity'
+            ]
+            
+            is_business_relevant = any(indicator in col_lower for indicator in business_indicators)
+            
+            if is_business_relevant or len(useful_columns) < 3:  # Always include some columns
+                useful_columns.append(col)
+        
+        return useful_columns[:5]  # Limit to 5 most useful

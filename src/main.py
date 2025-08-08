@@ -43,6 +43,31 @@ from utils.helpers import setup_logging, load_environment
 from utils.output_manager import OutputManager
 
 
+def validate_ai_environment() -> bool:
+    """Validate that Azure OpenAI environment variables are configured."""
+    required_vars = {
+        'AZURE_OPENAI_ENDPOINT': 'Azure OpenAI service endpoint URL',
+        'AZURE_OPENAI_API_KEY': 'Azure OpenAI API key', 
+        'AZURE_OPENAI_DEPLOYMENT_NAME': 'Azure OpenAI deployment name (e.g., gpt-4)'
+    }
+    
+    missing_vars = []
+    for var, description in required_vars.items():
+        if not os.getenv(var):
+            missing_vars.append(f"  {var}: {description}")
+    
+    if missing_vars:
+        click.echo("⚠️  Azure OpenAI environment variables not configured:")
+        for var in missing_vars:
+            click.echo(var)
+        click.echo("\n💡 AI-powered analysis will be disabled. Set these variables in your .env file for enhanced analysis.")
+        click.echo("   Tool will continue with rule-based analysis.")
+        return False
+    else:
+        click.echo("✅ Azure OpenAI environment configured")
+        return True
+
+
 @click.group()
 @click.option(
     '--log-level',
@@ -209,6 +234,13 @@ def assess(
         if not files_to_process:
             click.echo("❌ No files specified for analysis. Use --data-files, --schema/--schema-files, or --directory")
             return
+        
+        # Validate Azure OpenAI environment
+        ai_available = validate_ai_environment()
+        if ai_available:
+            click.echo("🔬 Enhanced AI analysis enabled")
+        else:
+            click.echo("📊 Using rule-based analysis with business intelligence fallback")
         
         logger.info(f"Processing {len(files_to_process)} files: {[os.path.basename(f) for f in files_to_process]}")
         
