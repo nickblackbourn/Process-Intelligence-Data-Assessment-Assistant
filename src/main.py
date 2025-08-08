@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Main entry point for the Process Mining Event Log Assessment Assistant."""
 
+import glob
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import List, Optional
@@ -54,6 +56,12 @@ def cli(log_level: str, verbose: bool) -> None:
     help='Database schema file (SQL DDL, XML)'
 )
 @click.option(
+    '--directory',
+    '--dir',
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    help='Directory containing multiple data files or schemas to analyze'
+)
+@click.option(
     '--context',
     '-c',
     type=click.Path(exists=True),
@@ -69,6 +77,7 @@ def cli(log_level: str, verbose: bool) -> None:
 def assess(
     data_files: tuple,
     schema: Optional[str],
+    directory: Optional[str],
     context: Optional[str],
     output: str
 ) -> None:
@@ -85,34 +94,89 @@ def assess(
                 business_context = f.read()
             logger.info(f"Loaded business context from {context}")
         
+        # Collect all files to process
+        files_to_process = list(data_files) if data_files else []
+        
+        # Add directory files if specified
+        if directory:
+            # Support common data file extensions
+            patterns = ['*.csv', '*.xlsx', '*.xls', '*.json', '*.xsd', '*.sql']
+            for pattern in patterns:
+                files_found = glob.glob(os.path.join(directory, pattern))
+                files_to_process.extend(files_found)
+            
+            logger.info(f"Found {len(files_to_process)} files in directory {directory}")
+        
+        # Add schema file if specified separately
+        if schema:
+            files_to_process.append(schema)
+        
+        if not files_to_process:
+            click.echo("❌ No files specified for analysis. Use --data-files, --schema, or --directory")
+            return
+        
+        logger.info(f"Processing {len(files_to_process)} files: {[os.path.basename(f) for f in files_to_process]}")
+        
         # Initialize components
         data_ingestion = DataIngestionEngine()
         schema_analyzer = SchemaAnalyzer()
         ai_analyzer = AIAnalyzer()
         event_log_analyzer = EventLogAnalyzer()
         
-        # Load and analyze data files
+        # Process all files
         datasets = []
-        for file_path in data_files:
-            logger.info(f"Loading data from {file_path}")
-            data = data_ingestion.load_file(file_path)
-            datasets.append({
-                'file_path': file_path,
-                'data': data,
-                'metadata': data_ingestion.analyze_structure(data)
-            })
+        schema_analyses = []
         
-        # Analyze schema if provided
-        schema_info = None
-        if schema:
-            logger.info(f"Analyzing schema from {schema}")
-            schema_info = schema_analyzer.parse_schema_file(schema)
+        for file_path in files_to_process:
+            file_ext = os.path.splitext(file_path)[1].lower()
+            logger.info(f"Processing {file_path}")
+            
+            if file_ext in ['.csv', '.xlsx', '.xls', '.json']:
+                # Process data files
+                try:
+                    data = data_ingestion.load_file(file_path)
+                    if data is not None:
+                        datasets.append({
+                            'file_path': file_path,
+                            'data': data,
+                            'metadata': data_ingestion.analyze_structure(data)
+                        })
+                        click.echo(f"✅ Loaded data file: {os.path.basename(file_path)} ({len(data)} rows)")
+                except Exception as e:
+                    click.echo(f"⚠️ Failed to load {file_path}: {str(e)}")
+                    logger.error(f"Error loading {file_path}: {str(e)}")
+            
+            elif file_ext in ['.xsd', '.sql']:
+                # Process schema files
+                try:
+                    schema_info = schema_analyzer.parse_schema_file(file_path)
+                    if schema_info:
+                        schema_analyses.append({
+                            'file_path': file_path,
+                            'schema_info': schema_info
+                        })
+                        click.echo(f"✅ Analyzed schema: {os.path.basename(file_path)}")
+                except Exception as e:
+                    click.echo(f"⚠️ Failed to analyze schema {file_path}: {str(e)}")
+                    logger.error(f"Error analyzing schema {file_path}: {str(e)}")
+        
+        if not datasets and not schema_analyses:
+            click.echo("❌ No valid files could be processed")
+            return
+        
+        # Combine schema information for AI analysis
+        combined_schema_info = None
+        if schema_analyses:
+            combined_schema_info = {
+                'schemas': [s['schema_info'] for s in schema_analyses],
+                'source_files': [s['file_path'] for s in schema_analyses]
+            }
         
         # Perform AI-powered analysis
         logger.info("Performing AI-powered analysis")
         ai_insights = ai_analyzer.analyze_for_process_mining(
             datasets=datasets,
-            schema_info=schema_info,
+            schema_info=combined_schema_info,
             business_context=business_context
         )
         
@@ -120,7 +184,7 @@ def assess(
         logger.info("Generating event log assessment")
         assessment = event_log_analyzer.generate_assessment(
             datasets=datasets,
-            schema_info=schema_info,
+            schema_info=combined_schema_info,
             ai_insights=ai_insights,
             business_context=business_context
         )

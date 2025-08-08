@@ -1,6 +1,7 @@
 """Event log analyzer for generating comprehensive process mining assessments."""
 
 import logging
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -103,12 +104,53 @@ class EventLogAnalyzer:
         """Analyze schema information for process mining relevance."""
         
         analysis = {
-            'schema_type': schema_info.get('type'),
+            'schema_type': 'multiple' if 'schemas' in schema_info else schema_info.get('type'),
             'summary': {},
             'process_mining_elements': {}
         }
         
-        if schema_info.get('type') == 'sql':
+        # Handle multiple schemas (new format)
+        if 'schemas' in schema_info:
+            schemas = schema_info['schemas']
+            source_files = schema_info['source_files']
+            
+            total_elements = 0
+            schema_types = set()
+            all_elements = []
+            
+            for i, schema in enumerate(schemas):
+                schema_type = schema.get('type', 'unknown')
+                schema_types.add(schema_type)
+                
+                if schema_type == 'xml':
+                    elements = schema.get('elements', {})
+                    total_elements += len(elements)
+                    
+                    # Collect elements for analysis
+                    for element_name, element_info in elements.items():
+                        all_elements.append({
+                            'name': element_name,
+                            'source_file': source_files[i] if i < len(source_files) else 'unknown',
+                            'type': element_info.get('type'),
+                            'attributes': element_info.get('attributes', [])
+                        })
+                elif schema_type == 'sql':
+                    tables = schema.get('tables', {})
+                    total_elements += sum(len(t.get('columns', {})) for t in tables.values())
+            
+            analysis['summary'] = {
+                'total_schemas': len(schemas),
+                'schema_types': list(schema_types),
+                'total_elements': total_elements,
+                'source_files': [os.path.basename(f) for f in source_files]
+            }
+            
+            # Analyze elements for process mining potential
+            process_elements = self._analyze_elements_for_process_mining(all_elements)
+            analysis['process_mining_elements'] = process_elements
+        
+        # Handle single schema (legacy format)
+        elif schema_info.get('type') == 'sql':
             tables = schema_info.get('tables', {})
             analysis['summary'] = {
                 'total_tables': len(tables),
@@ -117,7 +159,7 @@ class EventLogAnalyzer:
             }
             
             # Get process mining candidates from schema analyzer
-            if hasattr(schema_info, 'process_mining_candidates'):
+            if 'process_mining_candidates' in schema_info:
                 analysis['process_mining_elements'] = schema_info['process_mining_candidates']
         
         return analysis
@@ -766,3 +808,74 @@ class EventLogAnalyzer:
             gaps.append(f"Gap of {gap.days} days found")
         
         return gaps
+    
+    def _analyze_elements_for_process_mining(self, elements: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Analyze schema elements for process mining potential."""
+        
+        case_id_candidates = []
+        activity_candidates = []
+        timestamp_candidates = []
+        attribute_candidates = []
+        
+        # Process mining related keywords
+        case_keywords = ['id', 'case', 'order', 'ticket', 'transaction', 'application', 'request', 'invoice']
+        activity_keywords = ['status', 'state', 'activity', 'event', 'action', 'step', 'phase', 'stage']
+        timestamp_keywords = ['date', 'time', 'timestamp', 'created', 'updated', 'modified', 'when']
+        
+        for element in elements:
+            element_name = element['name'].lower()
+            element_type = (element.get('type') or '').lower()  # Handle None types
+            source_file = element['source_file']
+            
+            # Check for case ID candidates
+            if any(keyword in element_name for keyword in case_keywords):
+                if 'id' in element_name or 'number' in element_name:
+                    case_id_candidates.append({
+                        'name': element['name'],
+                        'source_file': os.path.basename(source_file),
+                        'confidence': 0.8,
+                        'reason': f"Contains case-related keywords: {element_name}"
+                    })
+            
+            # Check for activity candidates
+            if any(keyword in element_name for keyword in activity_keywords):
+                activity_candidates.append({
+                    'name': element['name'],
+                    'source_file': os.path.basename(source_file),
+                    'confidence': 0.7,
+                    'reason': f"Contains activity-related keywords: {element_name}"
+                })
+            
+            # Check for timestamp candidates
+            if any(keyword in element_name for keyword in timestamp_keywords) or 'date' in element_type:
+                timestamp_candidates.append({
+                    'name': element['name'],
+                    'source_file': os.path.basename(source_file),
+                    'confidence': 0.8,
+                    'reason': f"Contains time-related keywords: {element_name}"
+                })
+            
+            # Other attributes
+            if not any([
+                any(keyword in element_name for keyword in case_keywords),
+                any(keyword in element_name for keyword in activity_keywords),
+                any(keyword in element_name for keyword in timestamp_keywords)
+            ]):
+                attribute_candidates.append({
+                    'name': element['name'],
+                    'source_file': os.path.basename(source_file),
+                    'type': element.get('type', 'unknown')
+                })
+        
+        return {
+            'case_id_candidates': case_id_candidates[:10],  # Top 10
+            'activity_candidates': activity_candidates[:10],
+            'timestamp_candidates': timestamp_candidates[:10],
+            'attribute_candidates': attribute_candidates[:20],
+            'summary': {
+                'total_case_candidates': len(case_id_candidates),
+                'total_activity_candidates': len(activity_candidates),
+                'total_timestamp_candidates': len(timestamp_candidates),
+                'total_attributes': len(attribute_candidates)
+            }
+        }

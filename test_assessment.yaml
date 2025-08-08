@@ -1,0 +1,303 @@
+metadata:
+  generated_at: '2025-08-08T09:35:54.794852'
+  assessment_version: '1.0'
+  analyzer: Process Mining Event Log Assessment Assistant
+business_context: ''
+data_sources:
+  total_files: 0
+  file_details: []
+  overall_statistics:
+    total_rows: 0
+    total_columns: 0
+    unique_columns: []
+schema_analysis:
+  schema_type: multiple
+  summary:
+    total_schemas: 15
+    schema_types:
+    - xml
+    total_elements: 3973
+    source_files:
+    - Configuration.xsd
+    - Document.xsd
+    - Finance.xsd
+    - GenericTransaction.xsd
+    - GTM.xsd
+    - Item.xsd
+    - Job.xsd
+    - LocationContact.xsd
+    - Order.xsd
+    - Planning.xsd
+    - Rate.xsd
+    - Shipment.xsd
+    - ShipUnit.xsd
+    - Transmission.xsd
+    - TransmissionCommon.xsd
+  process_mining_elements:
+    case_id_candidates:
+    - name: GlUserGid
+      source_file: Configuration.xsd
+      confidence: 0.8
+      reason: 'Contains case-related keywords: glusergid'
+    - name: GlAccountPolicyGid
+      source_file: Configuration.xsd
+      confidence: 0.8
+      reason: 'Contains case-related keywords: glaccountpolicygid'
+    - name: UserRoleGid
+      source_file: Configuration.xsd
+      confidence: 0.8
+      reason: 'Contains case-related keywords: userrolegid'
+    - name: UserPreferenceGid
+      source_file: Configuration.xsd
+      confidence: 0.8
+      reason: 'Contains case-related keywords: userpreferencegid'
+    - name: UserMenuLayoutGid
+      source_file: Configuration.xsd
+      confidence: 0.8
+      reason: 'Contains case-related keywords: usermenulayoutgid'
+    - name: DocumentUseProfileGid
+      source_file: Configuration.xsd
+      confidence: 0.8
+      reason: 'Contains case-related keywords: documentuseprofilegid'
+    - name: UserBIAppGid
+      source_file: Configuration.xsd
+      confidence: 0.8
+      reason: 'Contains case-related keywords: userbiappgid'
+    - name: UserBIRoleGid
+      source_file: Configuration.xsd
+      confidence: 0.8
+      reason: 'Contains case-related keywords: userbirolegid'
+    - name: DocumentGid
+      source_file: Document.xsd
+      confidence: 0.8
+      reason: 'Contains case-related keywords: documentgid'
+    - name: DocumentDefinitionGid
+      source_file: Document.xsd
+      confidence: 0.8
+      reason: 'Contains case-related keywords: documentdefinitiongid'
+    activity_candidates:
+    - name: TransactionCode
+      source_file: Configuration.xsd
+      confidence: 0.7
+      reason: 'Contains activity-related keywords: transactioncode'
+    - name: TransactionCode
+      source_file: Document.xsd
+      confidence: 0.7
+      reason: 'Contains activity-related keywords: transactioncode'
+    - name: Status
+      source_file: Document.xsd
+      confidence: 0.7
+      reason: 'Contains activity-related keywords: status'
+    - name: TransactionCode
+      source_file: Finance.xsd
+      confidence: 0.7
+      reason: 'Contains activity-related keywords: transactioncode'
+    - name: VoucherStatus
+      source_file: Finance.xsd
+      confidence: 0.7
+      reason: 'Contains activity-related keywords: voucherstatus'
+    - name: FractionalDigits
+      source_file: Finance.xsd
+      confidence: 0.7
+      reason: 'Contains activity-related keywords: fractionaldigits'
+    - name: Status
+      source_file: Finance.xsd
+      confidence: 0.7
+      reason: 'Contains activity-related keywords: status'
+    - name: DamagedFraction
+      source_file: Finance.xsd
+      confidence: 0.7
+      reason: 'Contains activity-related keywords: damagedfraction'
+    - name: RemovedFraction
+      source_file: Finance.xsd
+      confidence: 0.7
+      reason: 'Contains activity-related keywords: removedfraction'
+    - name: PackageStatusGid
+      source_file: Finance.xsd
+      confidence: 0.7
+      reason: 'Contains activity-related keywords: packagestatusgid'
+    timestamp_candidates:
+    - name: EffectiveDate
+      source_file: Configuration.xsd
+      confidence: 0.8
+      reason: 'Contains time-related keywords: effectivedate'
+    - name: ExpirationDate
+      source_file: Configuration.xsd
+      confidence: 0.8
+      reason: 'Contains time-related keywords: expirationdate'
+    - name: NewPasswordExpirationDate
+      source_file: Configuration.xsd
+      confidence: 0.8
+      reason: 'Contains time-related keywords: newpasswordexpirationdate'
+    - name: InvoiceDate
+      source_file: Finance.xsd
+      confidence: 0.8
+      reason: 'Contains time-related keywords: invoicedate'
+    - name: StartDt
+      source_file: Finance.xsd
+      confidence: 0.8
+      reason: 'Contains time-related keywords: startdt'
+    - name: EndDt
+      source_file: Finance.xsd
+      confidence: 0.8
+      reason: 'Contains time-related keywords: enddt'
+    - name: NetDueDate
+      source_file: Finance.xsd
+      confidence: 0.8
+      reason: 'Contains time-related keywords: netduedate'
+    - name: DateReceived
+      source_file: Finance.xsd
+      confidence: 0.8
+      reason: 'Contains time-related keywords: datereceived'
+    - name: GLDate
+      source_file: Finance.xsd
+      confidence: 0.8
+      reason: 'Contains time-related keywords: gldate'
+    - name: SailDt
+      source_file: Finance.xsd
+      confidence: 0.8
+      reason: 'Contains time-related keywords: saildt'
+    attribute_candidates:
+    - name: User
+      source_file: Configuration.xsd
+      type: UserType
+    - name: CSVDataLoad
+      source_file: Configuration.xsd
+      type: CSVDataLoadType
+    - name: Nickname
+      source_file: Configuration.xsd
+      type: xsd:string
+    - name: UserPassword
+      source_file: Configuration.xsd
+      type: UserPasswordType
+    - name: DefaultAAReport
+      source_file: Configuration.xsd
+      type: xsd:string
+    - name: IsExternal
+      source_file: Configuration.xsd
+      type: xsd:string
+    - name: IsFromOAM
+      source_file: Configuration.xsd
+      type: xsd:string
+    - name: OldPassword
+      source_file: Configuration.xsd
+      type: GLogXMLGlPassword
+    - name: NewPassword
+      source_file: Configuration.xsd
+      type: GLogXMLGlPassword
+    - name: GlPassword
+      source_file: Configuration.xsd
+      type: GlPasswordType
+    - name: TextPassword
+      source_file: Configuration.xsd
+      type: xsd:string
+    - name: EncryptedPassword
+      source_file: Configuration.xsd
+      type: xsd:string
+    - name: CsvCommand
+      source_file: Configuration.xsd
+      type: xsd:string
+    - name: CsvTableName
+      source_file: Configuration.xsd
+      type: xsd:string
+    - name: CsvColumnList
+      source_file: Configuration.xsd
+      type: xsd:string
+    - name: CsvRow
+      source_file: Configuration.xsd
+      type: xsd:string
+    - name: Document
+      source_file: Document.xsd
+      type: DocumentType
+    - name: ReplaceChildren
+      source_file: Document.xsd
+      type: ReplaceChildrenType
+    - name: DocumentOwner
+      source_file: Document.xsd
+      type: DocumentOwnerType
+    - name: Indicator
+      source_file: Document.xsd
+      type: xsd:string
+    summary:
+      total_case_candidates: 1036
+      total_activity_candidates: 221
+      total_timestamp_candidates: 331
+      total_attributes: 2494
+case_id_candidates: []
+activity_analysis:
+  activity_candidates: []
+  recommended_activities: []
+  activities_to_aggregate: []
+  activity_patterns: []
+timestamp_analysis:
+  timestamp_candidates: []
+  temporal_coverage: {}
+  timestamp_quality: {}
+attribute_mapping:
+  case_attributes: []
+  event_attributes: []
+  derived_attributes: []
+data_quality:
+  overall_score: 52.5
+  completeness_score: 0
+  consistency_score: 85.0
+  validity_score: 90.0
+  issues: []
+  recommendations:
+  - Improve data quality before process mining analysis
+  - Address missing data issues
+process_mining_readiness:
+  score: 0.0
+  level: Not Ready
+  criteria:
+    has_case_id: false
+    has_activity: false
+    has_timestamp: false
+    sufficient_data: false
+    data_quality_acceptable: false
+  missing_elements:
+  - Case ID
+  - Activity information
+  - Timestamp data
+  - Sufficient data volume
+  - Acceptable data quality
+  recommendations: []
+recommendations:
+- Identify or create a unique case identifier for process instances
+- Identify columns that represent process activities or events
+- Ensure timestamp information is available for all events
+transformation_plan:
+  overview: Step-by-step plan to transform source data into process mining event log
+  steps:
+  - step: 1
+    title: Data Preparation
+    description: Clean and prepare source data files
+    actions:
+    - Remove duplicate records
+    - Handle missing values
+    - Standardize data formats
+    - Validate data integrity
+  - step: 2
+    title: Case ID Creation
+    description: Create case identifiers from available data
+    actions:
+    - Analyze data patterns to identify process instances
+    - Create composite case IDs if necessary
+    - Validate case boundaries
+  - step: 5
+    title: Event Log Assembly
+    description: Combine all elements into final event log
+    actions:
+    - Merge case IDs, activities, and timestamps
+    - Add case and event attributes
+    - Validate event log structure
+    - Export in standard format (CSV/XES)
+  estimated_effort: Medium
+  prerequisites: []
+next_steps:
+- Review and validate the recommended case ID, activity, and timestamp mappings
+- Prepare data transformation scripts based on the transformation plan
+- Test the event log creation process with a sample of data
+- Validate the resulting event log with process mining tools
+- Iterate and refine the mapping based on initial results
+ai_insights: null
