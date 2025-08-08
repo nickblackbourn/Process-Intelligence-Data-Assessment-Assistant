@@ -70,7 +70,14 @@ python -m src.main interactive
 ### Schema Analysis
 Analyze database schemas along with sample data:
 ```bash
+# Single schema file
 python -m src.main assess --schema schema.sql --data-files sample_data.csv --context process_description.txt
+
+# Multiple schema files (XSD, SQL, XML)
+python -m src.main assess --schema-files schema1.xsd schema2.sql --data-files sample_data.csv --context process_description.txt
+
+# Directory processing (recursively finds all data and schema files)
+python -m src.main assess --data-files ./data_directory/ --schema-files ./schemas/ --context process_description.txt
 ```
 
 ## Development
@@ -142,6 +149,12 @@ python -m src.main assess --data-files data/sample_processes.csv --context data/
 # Analyze multiple files with schema
 python -m src.main assess --data-files data1.csv data2.xlsx --schema schema.sql --context description.txt
 
+# Multiple schema files (mixed formats)
+python -m src.main assess --data-files data1.csv --schema-files schema.xsd database.sql --context description.txt
+
+# Directory processing (recursively discovers files)
+python -m src.main assess --data-files ./data/ --schema-files ./schemas/ --context process_info.txt
+
 # Run demo to see capabilities
 python -m src.main demo
 ```
@@ -155,6 +168,8 @@ The tool generates a comprehensive YAML assessment including:
 - **Data quality assessment** with specific issues
 - **Process mining readiness score**
 - **Step-by-step transformation plan**
+- **Suggested SQL queries** for data extraction
+- **Files considered** for full provenance tracking
 
 ## License
 

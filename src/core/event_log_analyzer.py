@@ -12,6 +12,24 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
+def _convert_numpy_types(obj):
+    """Recursively convert numpy types to Python native types for YAML serialization."""
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: _convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_numpy_types(item) for item in obj]
+    elif pd.isna(obj):
+        return None
+    else:
+        return obj
+
+
 class EventLogAnalyzer:
     """Generates comprehensive assessments for process mining event log creation."""
     
@@ -39,28 +57,67 @@ class EventLogAnalyzer:
         """
         logger.info("Generating comprehensive process mining assessment")
         
+        # Collect files considered (provenance)
+        files_considered = {
+            'data_files': [d.get('file_path') for d in datasets],
+            'schema_files': (schema_info or {}).get('source_files', []) if isinstance(schema_info, dict) else []
+        }
+        
+        # Build sections with normalization to avoid nulls in YAML
+        schema_analysis = self._analyze_schema(schema_info) if schema_info else {
+            'schema_type': 'none', 'summary': {}, 'process_mining_elements': {}
+        }
+        case_id_candidates = self._compile_case_id_candidates(datasets, schema_info, ai_insights) or []
+        activity_analysis = self._compile_activity_analysis(datasets, schema_info, ai_insights) or {}
+        activity_analysis.setdefault('activity_candidates', [])
+        activity_analysis.setdefault('recommended_activities', [])
+        activity_analysis.setdefault('activities_to_aggregate', [])
+        activity_analysis.setdefault('activity_patterns', [])
+        timestamp_analysis = self._compile_timestamp_analysis(datasets, schema_info, ai_insights) or {}
+        timestamp_analysis.setdefault('timestamp_candidates', [])
+        timestamp_analysis.setdefault('temporal_coverage', {})
+        timestamp_analysis.setdefault('timestamp_quality', {})
+        attribute_mapping = self._compile_attribute_mapping(datasets, schema_info, ai_insights) or {
+            'case_attributes': [], 'event_attributes': [], 'derived_attributes': []
+        }
+        data_quality = self._assess_data_quality(datasets)
+        readiness = self._assess_readiness(datasets, ai_insights)
+        
+        suggested_sql = self._generate_suggested_sql(
+            case_id_candidates,
+            activity_analysis.get('activity_candidates', []),
+            timestamp_analysis.get('timestamp_candidates', []),
+            datasets
+        )
+        
         assessment = {
             'metadata': {
                 'generated_at': datetime.now().isoformat(),
                 'assessment_version': '1.0',
-                'analyzer': 'Process Mining Event Log Assessment Assistant'
+                'analyzer': 'Process Mining Event Log Assessment Assistant',
+                'files_considered': files_considered
             },
-            'business_context': business_context,
+            'business_context': business_context or "",
             'data_sources': self._analyze_data_sources(datasets),
-            'schema_analysis': self._analyze_schema(schema_info) if schema_info else None,
-            'case_id_candidates': self._compile_case_id_candidates(datasets, schema_info, ai_insights),
-            'activity_analysis': self._compile_activity_analysis(datasets, schema_info, ai_insights),
-            'timestamp_analysis': self._compile_timestamp_analysis(datasets, schema_info, ai_insights),
-            'attribute_mapping': self._compile_attribute_mapping(datasets, schema_info, ai_insights),
-            'data_quality': self._assess_data_quality(datasets),
-            'process_mining_readiness': self._assess_readiness(datasets, ai_insights),
+            'schema_analysis': schema_analysis,
+            'case_id_candidates': case_id_candidates,
+            'activity_analysis': activity_analysis,
+            'timestamp_analysis': timestamp_analysis,
+            'attribute_mapping': attribute_mapping,
+            'data_quality': data_quality,
+            'process_mining_readiness': readiness,
             'recommendations': self._compile_recommendations(datasets, schema_info, ai_insights),
             'transformation_plan': self._generate_transformation_plan(datasets, ai_insights),
+            'suggested_sql': suggested_sql,
             'next_steps': self._generate_next_steps(ai_insights),
             'ai_insights': ai_insights if ai_insights.get('ai_analysis', False) else None
         }
         
         logger.info("Assessment generation completed")
+        
+        # Convert any numpy types to Python native types for YAML serialization
+        assessment = _convert_numpy_types(assessment)
+        
         return assessment
     
     def _analyze_data_sources(self, datasets: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -104,15 +161,18 @@ class EventLogAnalyzer:
         """Analyze schema information for process mining relevance."""
         
         analysis = {
-            'schema_type': 'multiple' if 'schemas' in schema_info else schema_info.get('type'),
+            'schema_type': 'multiple' if (isinstance(schema_info, dict) and 'schemas' in schema_info) else (schema_info.get('type') if isinstance(schema_info, dict) else 'unknown'),
             'summary': {},
             'process_mining_elements': {}
         }
         
-        # Handle multiple schemas (new format)
+        if not isinstance(schema_info, dict):
+            return analysis
+        
+        # Handle multiple schemas (robust to dict/list element shapes)
         if 'schemas' in schema_info:
-            schemas = schema_info['schemas']
-            source_files = schema_info['source_files']
+            schemas = schema_info.get('schemas', [])
+            source_files = schema_info.get('source_files', [])
             
             total_elements = 0
             schema_types = set()
@@ -121,22 +181,29 @@ class EventLogAnalyzer:
             for i, schema in enumerate(schemas):
                 schema_type = schema.get('type', 'unknown')
                 schema_types.add(schema_type)
+                src_file = source_files[i] if i < len(source_files) else 'unknown'
                 
                 if schema_type == 'xml':
                     elements = schema.get('elements', {})
-                    total_elements += len(elements)
-                    
-                    # Collect elements for analysis
-                    for element_name, element_info in elements.items():
+                    # elements may be dict{name:info} or list[{name,type,...}]
+                    if isinstance(elements, dict):
+                        items = [{'name': k, **(v or {})} for k, v in elements.items()]
+                    elif isinstance(elements, list):
+                        items = elements
+                    else:
+                        items = []
+                    total_elements += len(items)
+                    for el in items:
                         all_elements.append({
-                            'name': element_name,
-                            'source_file': source_files[i] if i < len(source_files) else 'unknown',
-                            'type': element_info.get('type'),
-                            'attributes': element_info.get('attributes', [])
+                            'name': el.get('name'),
+                            'source_file': src_file,
+                            'type': el.get('type'),
+                            'attributes': el.get('attributes', [])
                         })
                 elif schema_type == 'sql':
                     tables = schema.get('tables', {})
-                    total_elements += sum(len(t.get('columns', {})) for t in tables.values())
+                    if isinstance(tables, dict):
+                        total_elements += sum(len(t.get('columns', {})) for t in tables.values())
             
             analysis['summary'] = {
                 'total_schemas': len(schemas),
@@ -148,14 +215,15 @@ class EventLogAnalyzer:
             # Analyze elements for process mining potential
             process_elements = self._analyze_elements_for_process_mining(all_elements)
             analysis['process_mining_elements'] = process_elements
+            return analysis
         
         # Handle single schema (legacy format)
-        elif schema_info.get('type') == 'sql':
+        if schema_info.get('type') == 'sql':
             tables = schema_info.get('tables', {})
             analysis['summary'] = {
-                'total_tables': len(tables),
-                'tables_with_relationships': len([t for t in tables.values() if t.get('foreign_keys')]),
-                'total_columns': sum(len(t.get('columns', {})) for t in tables.values())
+                'total_tables': len(tables) if isinstance(tables, dict) else 0,
+                'tables_with_relationships': len([t for t in (tables.values() if isinstance(tables, dict) else []) if t.get('foreign_keys')]),
+                'total_columns': sum(len(t.get('columns', {})) for t in (tables.values() if isinstance(tables, dict) else []))
             }
             
             # Get process mining candidates from schema analyzer
@@ -454,18 +522,32 @@ class EventLogAnalyzer:
             'recommendations': []
         }
         
-        # Check for essential elements
-        has_case_candidates = bool(ai_insights.get('case_id_analysis', {}).get('primary_recommendation'))
-        has_activity_candidates = bool(ai_insights.get('activity_analysis', {}).get('primary_recommendation'))
-        has_timestamp_candidates = bool(ai_insights.get('timestamp_analysis', {}).get('primary_recommendation'))
+        # AI-based signals
+        ai_case = bool(ai_insights.get('case_id_analysis', {}).get('primary_recommendation'))
+        ai_act = bool(ai_insights.get('activity_analysis', {}).get('primary_recommendation'))
+        ai_ts = bool(ai_insights.get('timestamp_analysis', {}).get('primary_recommendation'))
         
-        # Check data volume
+        # Heuristic fallback from dataset metadata
+        meta_case = any(dataset.get('metadata', {}).get('potential_identifiers') for dataset in datasets)
+        meta_act = any(dataset.get('metadata', {}).get('potential_activities') for dataset in datasets)
+        meta_ts = any(dataset.get('metadata', {}).get('potential_timestamps') for dataset in datasets)
+        
+        has_case_candidates = ai_case or meta_case
+        has_activity_candidates = ai_act or meta_act
+        has_timestamp_candidates = ai_ts or meta_ts
+        
+        # Data volume
         total_rows = sum(dataset.get('metadata', {}).get('shape', {}).get('rows', 0) for dataset in datasets)
         sufficient_data = total_rows >= 100  # Minimum threshold
         
-        # Check data quality
-        data_quality_score = ai_insights.get('process_mining_readiness', {}).get('score', 0.5)
-        data_quality_acceptable = data_quality_score >= 0.7
+        # Data quality (fallback if AI not available)
+        dq_from_ai = ai_insights.get('process_mining_readiness', {}).get('score')
+        data_quality_acceptable = (dq_from_ai is not None and dq_from_ai >= 0.7)
+        if dq_from_ai is None:
+            # derive from file quality scores
+            file_scores = [self._calculate_file_quality_score(dataset.get('metadata', {})) for dataset in datasets]
+            avg_score = sum(file_scores) / len(file_scores) if file_scores else 0.0
+            data_quality_acceptable = avg_score >= 0.7
         
         # Update criteria
         readiness['criteria'].update({
@@ -476,11 +558,9 @@ class EventLogAnalyzer:
             'data_quality_acceptable': data_quality_acceptable
         })
         
-        # Calculate score
-        criteria_met = sum(readiness['criteria'].values())
+        # Calculate score & level
+        criteria_met = sum(1 for v in readiness['criteria'].values() if v)
         readiness['score'] = criteria_met / len(readiness['criteria'])
-        
-        # Determine readiness level
         if readiness['score'] >= 0.8:
             readiness['level'] = 'Ready'
         elif readiness['score'] >= 0.6:
@@ -490,7 +570,7 @@ class EventLogAnalyzer:
         else:
             readiness['level'] = 'Not Ready'
         
-        # Identify missing elements
+        # Missing elements
         if not has_case_candidates:
             readiness['missing_elements'].append('Case ID')
         if not has_activity_candidates:
@@ -761,7 +841,7 @@ class EventLogAnalyzer:
                 'type': 'activity_distribution',
                 'total_activities': len(activity_counts),
                 'most_common': activity_counts.head().to_dict(),
-                'activity_balance': float(activity_counts.std() / activity_counts.mean()) if activity_counts.mean() > 0 else 0
+                'activity_balance': float(activity_counts.std() / activity_counts.mean()) if activity_counts.mean() > 0 else 0.0
             })
         
         return patterns
@@ -782,8 +862,8 @@ class EventLogAnalyzer:
             coverage = {
                 'start_date': valid_timestamps.min().isoformat(),
                 'end_date': valid_timestamps.max().isoformat(),
-                'date_range_days': (valid_timestamps.max() - valid_timestamps.min()).days,
-                'valid_percentage': (len(valid_timestamps) / len(data)) * 100,
+                'date_range_days': int((valid_timestamps.max() - valid_timestamps.min()).days),
+                'valid_percentage': float((len(valid_timestamps) / len(data)) * 100),
                 'temporal_gaps': self._find_temporal_gaps(valid_timestamps)
             }
             
@@ -879,3 +959,78 @@ class EventLogAnalyzer:
                 'total_attributes': len(attribute_candidates)
             }
         }
+    
+    def _generate_suggested_sql(
+        self,
+        case_candidates: List[Dict[str, Any]],
+        activity_candidates: List[Dict[str, Any]],
+        timestamp_candidates: List[Dict[str, Any]],
+        datasets: List[Dict[str, Any]]
+    ) -> str:
+        """Generate an MVP suggested SQL to assemble a case-centric event log."""
+        if not datasets and not (case_candidates or activity_candidates or timestamp_candidates):
+            return "-- No inputs available to suggest SQL."
+        
+        def pick(cands: List[Dict[str, Any]], preferred_prefix: str) -> Optional[Dict[str, Any]]:
+            if not cands:
+                return None
+            ai = [c for c in cands if str(c.get('source', '')).startswith(preferred_prefix)]
+            return (ai or cands)[0]
+        
+        case_c = pick(case_candidates, 'ai_')
+        act_c = pick(activity_candidates, 'ai_')
+        ts_c = pick(timestamp_candidates, 'ai_')
+        
+        def sanitize_ident(name: str) -> str:
+            return ''.join(ch if (ch.isalnum() or ch == '_') else '_' for ch in name)
+        
+        def table_from_path(path: str) -> str:
+            if not path:
+                return 'source_table'
+            base = os.path.splitext(os.path.basename(path))[0]
+            return sanitize_ident(base)
+        
+        # Derive tables/columns with fallbacks
+        case_table = table_from_path(case_c.get('table')) if case_c and case_c.get('table') else (table_from_path(datasets[0]['file_path']) if datasets else 'source_table')
+        case_col = case_c.get('column', 'case_id') if case_c else 'case_id'
+        
+        act_table = table_from_path(act_c.get('table')) if act_c and act_c.get('table') else case_table
+        act_col = act_c.get('column', 'activity') if act_c else 'activity'
+        
+        ts_table = table_from_path(ts_c.get('table')) if ts_c and ts_c.get('table') else act_table
+        ts_col = ts_c.get('column', 'event_time') if ts_c else 'event_time'
+        
+        join_key = case_col
+        
+        sql = f"""-- Suggested SQL (MVP) to assemble a case-centric event log
+-- Assumptions:
+--  - Tables derived from provided files (update schema/table names as needed)
+--  - Join keys and filters may require refinement
+
+WITH activities AS (
+    SELECT
+        a.{case_col} AS case_id,
+        a.{act_col} AS activity,
+        a.{ts_col}  AS event_time,
+        a.*
+    FROM {act_table} a
+),
+cases AS (
+    SELECT
+        c.{case_col} AS case_id,
+        c.*
+    FROM {case_table} c
+)
+SELECT
+    e.case_id,
+    e.activity,
+    e.event_time AS timestamp,
+    -- Add selected attributes below (case- and event-level)
+    -- e.attribute1, e.attribute2, c.case_attribute1
+FROM activities e
+JOIN cases c
+  ON e.{join_key} = c.{case_col}
+WHERE e.event_time IS NOT NULL
+ORDER BY e.case_id, e.event_time;
+"""
+        return sql

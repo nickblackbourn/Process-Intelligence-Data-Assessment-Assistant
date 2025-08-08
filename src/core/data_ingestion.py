@@ -184,8 +184,18 @@ class DataIngestionEngine:
             sample_size = min(5, len(non_null_values))
             analysis['sample_values'] = non_null_values.head(sample_size).tolist()
         
-        # Check if could be identifier
-        if analysis['unique_percentage'] > 80 and analysis['missing_percentage'] < 10:
+        # Check if could be identifier (but exclude timestamp-like columns)
+        timestamp_keywords = ['time', 'date', 'timestamp', 'created', 'updated', 'occurred']
+        is_timestamp_like = any(keyword in col.lower() for keyword in timestamp_keywords)
+        
+        # For case ID detection, also check column name patterns
+        case_id_keywords = ['id', 'case', 'order', 'ticket', 'instance', 'key']
+        has_id_pattern = any(keyword in col.lower() for keyword in case_id_keywords)
+        
+        if (((analysis['unique_percentage'] > 40 and has_id_pattern) or 
+             analysis['unique_percentage'] > 80) and 
+            analysis['missing_percentage'] < 10 and 
+            not is_timestamp_like):
             analysis['could_be_identifier'] = True
         
         # Check if could be timestamp
@@ -212,10 +222,11 @@ class DataIngestionEngine:
         if col_data.dtype in ['int64', 'float64']:
             numeric_data = col_data.dropna()
             if len(numeric_data) > 0:
+                std_val = numeric_data.std() if len(numeric_data) > 1 else 0
                 analysis.update({
                     'mean': float(numeric_data.mean()),
                     'median': float(numeric_data.median()),
-                    'std': float(numeric_data.std()) if len(numeric_data) > 1 else 0,
+                    'std': float(std_val) if not pd.isna(std_val) else 0.0,
                     'min': float(numeric_data.min()),
                     'max': float(numeric_data.max())
                 })

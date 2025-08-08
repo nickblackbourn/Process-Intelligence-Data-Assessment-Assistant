@@ -56,6 +56,12 @@ def cli(log_level: str, verbose: bool) -> None:
     help='Database schema file (SQL DDL, XML)'
 )
 @click.option(
+    '--schema-files',
+    multiple=True,
+    type=click.Path(exists=True),
+    help='One or more schema files (SQL DDL, XSD/XML)'
+)
+@click.option(
     '--directory',
     '--dir',
     type=click.Path(exists=True, file_okay=False, dir_okay=True),
@@ -77,6 +83,7 @@ def cli(log_level: str, verbose: bool) -> None:
 def assess(
     data_files: tuple,
     schema: Optional[str],
+    schema_files: tuple,
     directory: Optional[str],
     context: Optional[str],
     output: str
@@ -95,24 +102,28 @@ def assess(
             logger.info(f"Loaded business context from {context}")
         
         # Collect all files to process
-        files_to_process = list(data_files) if data_files else []
+        files_to_process: List[str] = []
+        files_to_process.extend(list(data_files) if data_files else [])
+        files_to_process.extend(list(schema_files) if schema_files else [])
         
-        # Add directory files if specified
+        # Add directory files if specified (recursive)
         if directory:
-            # Support common data file extensions
-            patterns = ['*.csv', '*.xlsx', '*.xls', '*.json', '*.xsd', '*.sql']
+            dir_path = Path(directory)
+            patterns = ['*.csv', '*.xlsx', '*.xls', '*.json', '*.xsd', '*.xml', '*.sql', '*.ddl']
             for pattern in patterns:
-                files_found = glob.glob(os.path.join(directory, pattern))
-                files_to_process.extend(files_found)
-            
-            logger.info(f"Found {len(files_to_process)} files in directory {directory}")
+                for p in dir_path.rglob(pattern):
+                    files_to_process.append(str(p))
+            logger.info(f"Found {len(files_to_process)} files (including directory scan) from {directory}")
         
-        # Add schema file if specified separately
+        # Add single schema file if specified separately
         if schema:
             files_to_process.append(schema)
         
+        # Deduplicate while preserving order
+        files_to_process = list(dict.fromkeys(files_to_process))
+        
         if not files_to_process:
-            click.echo("❌ No files specified for analysis. Use --data-files, --schema, or --directory")
+            click.echo("❌ No files specified for analysis. Use --data-files, --schema/--schema-files, or --directory")
             return
         
         logger.info(f"Processing {len(files_to_process)} files: {[os.path.basename(f) for f in files_to_process]}")
@@ -146,7 +157,7 @@ def assess(
                     click.echo(f"⚠️ Failed to load {file_path}: {str(e)}")
                     logger.error(f"Error loading {file_path}: {str(e)}")
             
-            elif file_ext in ['.xsd', '.sql']:
+            elif file_ext in ['.xsd', '.xml', '.sql', '.ddl']:
                 # Process schema files
                 try:
                     schema_info = schema_analyzer.parse_schema_file(file_path)
@@ -191,12 +202,14 @@ def assess(
         
         # Save results
         with open(output, 'w', encoding='utf-8') as f:
-            yaml.dump(assessment, f, default_flow_style=False, sort_keys=False)
+            yaml.safe_dump(assessment, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
         
         logger.info(f"Assessment results saved to {output}")
         
         # Display summary
         display_assessment_summary(assessment)
+        if assessment.get('suggested_sql'):
+            click.echo("\n🧩 Suggested SQL generated (see output file).")
         
     except Exception as e:
         logger.error(f"Error during assessment: {e}")
@@ -251,6 +264,8 @@ def interactive() -> None:
         assess.callback(
             data_files=tuple(data_files),
             schema=None,
+            schema_files=(),
+            directory=None,
             context=context_file,
             output=output_file
         )
@@ -329,33 +344,73 @@ def display_assessment_summary(assessment: dict) -> None:
     click.echo("📋 ASSESSMENT SUMMARY")
     click.echo("=" * 60)
     
-    # Case ID recommendations
-    if 'case_id_candidates' in assessment:
+    # Case ID recommendations - check both locations
+    case_candidates = []
+    
+    # From direct case_id_candidates
+    if 'case_id_candidates' in assessment and assessment['case_id_candidates']:
+        case_candidates.extend(assessment['case_id_candidates'])
+    
+    # From schema analysis
+    if 'schema_analysis' in assessment:
+        schema_elements = assessment['schema_analysis'].get('process_mining_elements', {})
+        if 'case_id_candidates' in schema_elements and schema_elements['case_id_candidates']:
+            case_candidates.extend(schema_elements['case_id_candidates'])
+    
+    if case_candidates:
         click.echo("\n🆔 Case ID Candidates:")
-        for candidate in assessment['case_id_candidates'][:3]:  # Top 3
+        for candidate in case_candidates[:3]:  # Top 3
             confidence = candidate.get('confidence', 0)
-            click.echo(f"  • {candidate['column']} (confidence: {confidence:.1%})")
+            col = candidate.get('column') or candidate.get('name') or 'unknown'
+            source = candidate.get('source_file') or candidate.get('table') or 'unknown'
+            click.echo(f"  • {col} from {source} (confidence: {confidence:.1%})")
+    else:
+        click.echo("\n🆔 Case ID Candidates: None found")
     
     # Activity recommendations
     if 'activity_analysis' in assessment:
         click.echo("\n⚡ Activity Analysis:")
         activities = assessment['activity_analysis']
-        if 'recommended_activities' in activities:
-            click.echo(f"  • Recommended activities: {len(activities['recommended_activities'])}")
-        if 'activities_to_aggregate' in activities:
-            click.echo(f"  • Activities to consider aggregating: {len(activities['activities_to_aggregate'])}")
+        
+        # Check activity_candidates (the actual candidates list)
+        activity_count = len(activities.get('activity_candidates', []))
+        click.echo(f"  • Activity candidates found: {activity_count}")
+        
+        if activity_count > 0:
+            # Show top activity candidate
+            top_activity = activities['activity_candidates'][0]
+            col = top_activity.get('column') or top_activity.get('name') or 'unknown'
+            source = top_activity.get('source_file') or top_activity.get('table') or 'unknown'
+            confidence = top_activity.get('confidence', 0)
+            click.echo(f"  • Top candidate: {col} from {source} (confidence: {confidence:.1%})")
+        
+        agg_count = len(activities.get('activities_to_aggregate', []))
+        if agg_count > 0:
+            click.echo(f"  • Activities to consider aggregating: {agg_count}")
+    else:
+        click.echo("\n⚡ Activity Analysis: No analysis available")
     
-    # Data quality summary
+    # Data quality summary - fix the score display
     if 'data_quality' in assessment:
         quality = assessment['data_quality']
         overall_score = quality.get('overall_score', 0)
-        click.echo(f"\n📊 Data Quality Score: {overall_score:.1%}")
+        # The score is already a percentage (0-100), so don't multiply by 100
+        click.echo(f"\n📊 Data Quality Score: {overall_score:.1f}%")
+        
+        # Show key quality metrics
+        completeness = quality.get('completeness_score', 0)
+        if completeness > 0:
+            click.echo(f"  • Data Completeness: {completeness:.1f}%")
+    else:
+        click.echo("\n📊 Data Quality Score: Not available")
     
     # Key recommendations
-    if 'recommendations' in assessment:
+    if 'recommendations' in assessment and assessment['recommendations']:
         click.echo("\n💡 Key Recommendations:")
-        for i, rec in enumerate(assessment['recommendations'][:5], 1):
+        for i, rec in enumerate(assessment['recommendations'][:3], 1):  # Show top 3
             click.echo(f"  {i}. {rec}")
+    else:
+        click.echo("\n💡 Key Recommendations: None available")
     
     click.echo("\n" + "=" * 60)
 
