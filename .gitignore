@@ -48,6 +48,44 @@ coverage.xml
 *.cover
 *.py,cover
 .hypothesis/
+
+# Project-specific output files and directories
+# Assessment results (now managed in organized results/ directory)
+*assessment*.yaml
+*assessment*.json
+*_results.yaml
+*_results.json
+
+# Temporary development files
+temp_*.txt
+temp_*.py
+temp_*.md
+inspect_*.py
+test_*.py  # Temporary test files, not formal tests
+
+# Logs and caches
+logs/
+*.log
+
+# Results directory - include structure but not content
+src/results/assessments/*/
+src/results/reports/*/
+src/results/sql/*/
+src/results/archives/
+!src/results/assessments/.gitkeep
+!src/results/reports/.gitkeep  
+!src/results/sql/.gitkeep
+
+# Old messy output files (legacy cleanup)
+output/
+sample_*.yaml
+enhanced_*.yaml
+improved_*.yaml
+comprehensive_*.yaml
+multi_*.yaml
+real_*.yaml
+full_*.yaml
+combined_*.yaml
 .pytest_cache/
 cover/
 

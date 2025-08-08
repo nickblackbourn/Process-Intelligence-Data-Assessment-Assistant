@@ -1,9 +1,33 @@
 #!/usr/bin/env python3
-"""Main entry point for the Process Mining Event Log Assessment Assistant."""
+"""
+Process Mining Event Log Assessment Assistant - Main CLI Application
+
+This module provides the command-line interface for the Process Mining Event Log 
+Assessment Assistant, a tool designed to help process mining consultants efficiently 
+assess and prepare data from various source systems to create high-quality event logs.
+
+Key Features:
+- Multi-format data ingestion (CSV, Excel, JSON, database schemas)
+- AI-powered analysis with Azure OpenAI integration
+- Schema analysis for XSD, SQL DDL, and embedded Excel schemas
+- Multi-tab Excel file processing with automatic schema detection
+- Intelligent output management with organized file structure
+- Comprehensive process mining readiness assessment
+
+Usage:
+    python main.py assess --data-files data.xlsx --schema-files schema.xsd
+    python main.py interactive
+    python main.py demo
+    python main.py manage-outputs
+
+Author: Process Intelligence Team
+Version: 2.0.0 - Enhanced Multi-Tab Excel & Output Management
+"""
 
 import glob
 import logging
 import os
+import shutil
 import sys
 from pathlib import Path
 from typing import List, Optional
@@ -16,6 +40,7 @@ from core.schema_analyzer import SchemaAnalyzer
 from core.ai_analyzer import AIAnalyzer
 from core.event_log_analyzer import EventLogAnalyzer
 from utils.helpers import setup_logging, load_environment
+from utils.output_manager import OutputManager
 
 
 @click.group()
@@ -34,8 +59,15 @@ from utils.helpers import setup_logging, load_environment
 def cli(log_level: str, verbose: bool) -> None:
     """Process Mining Event Log Assessment Assistant.
     
-    A tool for helping process mining consultants assess and prepare data
-    from various source systems to create high-quality event logs.
+    A comprehensive tool for process mining consultants to assess and prepare data
+    from various source systems. Supports multi-format data ingestion, AI-powered
+    analysis, schema detection, and intelligent output management.
+    
+    Enhanced Features (v2.0):
+    - Multi-tab Excel processing with embedded schema detection
+    - Organized output management with date-based folders
+    - Contextual file naming and automatic archiving
+    - Cross-platform compatibility and enterprise readiness
     """
     setup_logging(log_level, verbose)
     load_environment()
@@ -77,8 +109,29 @@ def cli(log_level: str, verbose: bool) -> None:
     '--output',
     '-o',
     type=click.Path(),
-    default='assessment_results.yaml',
-    help='Output file for assessment results'
+    help='Output file for assessment results (legacy option, use --output-name instead)'
+)
+@click.option(
+    '--output-dir',
+    type=click.Path(),
+    default='results',
+    help='Base directory for organized output files'
+)
+@click.option(
+    '--output-name',
+    type=str,
+    help='Custom base name for output files (auto-generated if not provided)'
+)
+@click.option(
+    '--output-format',
+    type=click.Choice(['yaml', 'json']),
+    default='yaml',
+    help='Output file format'
+)
+@click.option(
+    '--keep-history/--overwrite',
+    default=True,
+    help='Keep previous results (archive) or overwrite them'
 )
 def assess(
     data_files: tuple,
@@ -86,9 +139,40 @@ def assess(
     schema_files: tuple,
     directory: Optional[str],
     context: Optional[str],
-    output: str
+    output: Optional[str],
+    output_dir: str,
+    output_name: Optional[str],
+    output_format: str,
+    keep_history: bool
 ) -> None:
-    """Assess data sources for process mining event log creation."""
+    """Assess data sources for process mining event log creation.
+    
+    This command performs comprehensive analysis of data sources to determine their
+    suitability for process mining event log creation. It supports:
+    
+    Data Sources:
+    - CSV, Excel (single/multi-tab), JSON files
+    - Database schemas (XSD, SQL DDL)
+    - Directory scanning for batch processing
+    
+    Analysis Features:
+    - Multi-tab Excel processing with schema detection
+    - AI-powered business context analysis (when configured)
+    - Case ID, activity, and timestamp candidate identification
+    - Data quality assessment and readiness scoring
+    - SQL generation for event log assembly
+    
+    Output Management:
+    - Organized results in date-based folders
+    - Contextual file naming based on analyzed sources
+    - Automatic archiving of previous results
+    - Latest symlinks for easy access
+    
+    Examples:
+        python main.py assess --data-files orders.xlsx --output-name "Order_Analysis"
+        python main.py assess --directory ./data --schema-files schema.xsd
+        python main.py assess --data-files data.csv --context business_rules.txt
+    """
     
     logger = logging.getLogger(__name__)
     logger.info("Starting Process Mining Event Log Assessment")
@@ -145,14 +229,50 @@ def assess(
             if file_ext in ['.csv', '.xlsx', '.xls', '.json']:
                 # Process data files
                 try:
-                    data = data_ingestion.load_file(file_path)
-                    if data is not None:
-                        datasets.append({
-                            'file_path': file_path,
-                            'data': data,
-                            'metadata': data_ingestion.analyze_structure(data)
-                        })
-                        click.echo(f"✅ Loaded data file: {os.path.basename(file_path)} ({len(data)} rows)")
+                    data_result = data_ingestion.load_file(file_path)
+                    
+                    # Handle multi-tab Excel files
+                    if isinstance(data_result, dict) and 'multi_tab_file' in data_result.get('metadata', {}):
+                        # Multi-tab Excel file
+                        click.echo(f"✅ Loaded multi-tab Excel: {os.path.basename(file_path)} ({data_result['metadata']['total_tabs']} tabs)")
+                        
+                        for tab_name, tab_info in data_result['tabs'].items():
+                            datasets.append({
+                                'file_path': tab_info['source_reference'],
+                                'data': tab_info['data'],
+                                'metadata': tab_info['metadata'],
+                                'excel_tab_name': tab_name,
+                                'excel_analysis': tab_info['analysis'],
+                                'is_multi_tab': True
+                            })
+                            
+                            # If tab contains schema information, add to schema analyses
+                            if tab_info['analysis']['is_schema_definition']:
+                                schema_analyses.append({
+                                    'file_path': tab_info['source_reference'],
+                                    'schema_info': {
+                                        'type': 'excel_embedded_schema',
+                                        'elements': tab_info['analysis']['schema_elements'],
+                                        'schema_type': tab_info['analysis']['schema_type'],
+                                        'confidence': tab_info['analysis']['confidence'],
+                                        'source_tab': tab_name
+                                    }
+                                })
+                                click.echo(f"  📋 Schema detected in tab: {tab_name}")
+                            else:
+                                click.echo(f"  📊 Data tab: {tab_name} ({len(tab_info['data'])} rows)")
+                    
+                    else:
+                        # Single file or single-tab Excel
+                        if data_result is not None:
+                            datasets.append({
+                                'file_path': file_path,
+                                'data': data_result,
+                                'metadata': data_ingestion.analyze_structure(data_result),
+                                'is_multi_tab': False
+                            })
+                            click.echo(f"✅ Loaded data file: {os.path.basename(file_path)} ({len(data_result)} rows)")
+                    
                 except Exception as e:
                     click.echo(f"⚠️ Failed to load {file_path}: {str(e)}")
                     logger.error(f"Error loading {file_path}: {str(e)}")
@@ -200,11 +320,30 @@ def assess(
             business_context=business_context
         )
         
-        # Save results
-        with open(output, 'w', encoding='utf-8') as f:
-            yaml.safe_dump(assessment, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        # Initialize output manager for organized file handling
+        output_manager = OutputManager(base_dir=output_dir)
         
-        logger.info(f"Assessment results saved to {output}")
+        # Collect all source files for contextual naming
+        all_source_files = files_to_process.copy()
+        
+        # Save results using intelligent output management
+        if output:
+            # Legacy output option - save to specified path
+            with open(output, 'w', encoding='utf-8') as f:
+                yaml.safe_dump(assessment, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+            output_path = Path(output)
+            logger.info(f"Assessment results saved to {output} (legacy mode)")
+        else:
+            # New organized output management
+            output_path = output_manager.save_assessment(
+                assessment_data=assessment,
+                data_sources=all_source_files,
+                custom_name=output_name,
+                output_format=output_format,
+                keep_history=keep_history
+            )
+            click.echo(f"📁 Results saved to: {output_path}")
+            click.echo(f"📂 Latest available at: {output_manager.base_dir}/assessments/latest/")
         
         # Display summary
         display_assessment_summary(assessment)
@@ -380,6 +519,97 @@ def display_assessment_summary(assessment: dict) -> None:
     
     click.echo("\n� SQL query generated in output file.")
     click.echo("=" * 50)
+
+
+@cli.command()
+@click.option(
+    '--output-dir',
+    type=click.Path(),
+    default='results',
+    help='Base directory to manage'
+)
+@click.option(
+    '--cleanup-days',
+    type=int,
+    default=30,
+    help='Number of days to keep old files (0 = no cleanup)'
+)
+def manage_outputs(output_dir: str, cleanup_days: int) -> None:
+    """Manage and organize output files."""
+    
+    output_manager = OutputManager(base_dir=output_dir)
+    
+    click.echo(f"\n📂 Output Management for: {output_dir}")
+    click.echo("=" * 50)
+    
+    # Get summary
+    summary = output_manager.get_results_summary()
+    
+    click.echo(f"📊 Total files: {summary['total_files']}")
+    click.echo(f"📁 Base directory: {summary['base_directory']}")
+    
+    if summary['by_type']:
+        click.echo("\n📂 Files by type:")
+        for file_type, count in summary['by_type'].items():
+            click.echo(f"  {file_type}: {count} files")
+    
+    if summary['latest_files']:
+        click.echo("\n🔗 Latest files:")
+        for file_type, path in summary['latest_files'].items():
+            click.echo(f"  {file_type}: {path}")
+    
+    # Cleanup if requested
+    if cleanup_days > 0:
+        click.echo(f"\n🧹 Cleaning up files older than {cleanup_days} days...")
+        cleaned_count = output_manager.cleanup_old_files(cleanup_days)
+        click.echo(f"✅ Cleaned up {cleaned_count} old files")
+    
+    click.echo("\n💡 Tips:")
+    click.echo(f"  • Latest results: {output_dir}/assessments/latest/")
+    click.echo(f"  • Archived files: {output_dir}/archives/")
+    click.echo("  • Use --output-name for custom filenames")
+    click.echo("  • Use --keep-history to preserve previous results")
+
+
+@cli.command()
+@click.option(
+    '--output-dir',
+    type=click.Path(),
+    default='results',
+    help='Base directory to organize'
+)
+def organize_legacy_files(output_dir: str) -> None:
+    """Organize existing messy output files into the new structure."""
+    
+    click.echo("\n🔄 Organizing Legacy Output Files")
+    click.echo("=" * 50)
+    
+    output_manager = OutputManager(base_dir=output_dir)
+    root_dir = Path(".")
+    
+    # Find assessment files in root directory
+    legacy_files = list(root_dir.glob("*assessment*.yaml")) + list(root_dir.glob("*_results.yaml"))
+    
+    if not legacy_files:
+        click.echo("✅ No legacy assessment files found in root directory")
+        return
+    
+    click.echo(f"📋 Found {len(legacy_files)} legacy files to organize:")
+    
+    organized_count = 0
+    for file_path in legacy_files:
+        if file_path.is_file():
+            click.echo(f"  📄 {file_path.name}")
+            
+            # Move to organized structure
+            new_path = output_manager.base_dir / "assessments" / "legacy" / file_path.name
+            new_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            shutil.move(str(file_path), str(new_path))
+            organized_count += 1
+    
+    click.echo(f"\n✅ Organized {organized_count} files into: {output_dir}/assessments/legacy/")
+    click.echo("💡 Future assessments will be automatically organized by date")
 
 
 def main() -> None:

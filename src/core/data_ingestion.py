@@ -1,4 +1,33 @@
-"""Data ingestion engine for handling various data formats and operations."""
+"""
+Data Ingestion Engine for Process Mining Assessment Tool
+
+This module handles data loading from various file formats with enhanced support for
+multi-tab Excel files and embedded schema detection. It provides flexible data
+ingestion capabilities optimized for process mining analysis.
+
+Enhanced Features (v2.0):
+- Multi-tab Excel processing with automatic tab classification
+- Embedded schema detection within Excel sheets
+- Flexible CSV encoding and separator detection
+- JSON structure analysis and normalization
+- Data quality profiling and structure analysis
+- Source reference tracking for multi-tab files
+
+Supported Formats:
+- CSV files (with encoding/separator auto-detection)
+- Excel files (.xlsx, .xls) - single and multi-tab
+- JSON files (with structure normalization)
+- Parquet files for big data scenarios
+
+Multi-Tab Excel Features:
+- Automatic detection of data vs schema definition tabs
+- Schema extraction from metadata sheets
+- Cross-tab relationship analysis
+- Contextual source referencing (file.xlsx#TabName)
+
+Author: Process Intelligence Team
+Version: 2.0.0 - Enhanced Multi-Tab Excel Processing
+"""
 
 import logging
 import os
@@ -14,11 +43,31 @@ logger = logging.getLogger(__name__)
 
 
 class DataIngestionEngine:
-    """Handles data loading from various file formats and initial analysis."""
+    """
+    Handles data loading from various file formats with enhanced multi-tab Excel support.
+    
+    This class provides comprehensive data ingestion capabilities optimized for process
+    mining analysis, including advanced Excel processing that can handle complex
+    business documents with multiple tabs containing both data and embedded schemas.
+    
+    Key Capabilities:
+    - Multi-format file loading (CSV, Excel, JSON, Parquet)
+    - Multi-tab Excel processing with schema detection
+    - Automatic data structure analysis and profiling
+    - Flexible encoding and format detection
+    - Quality assessment and missing data analysis
+    
+    Multi-Tab Excel Processing:
+    - Detects data tabs vs schema definition tabs
+    - Extracts embedded schemas from metadata sheets
+    - Maintains source references for cross-tab analysis
+    - Supports complex enterprise Excel exports
+    """
     
     def __init__(self):
         """Initialize the DataIngestionEngine."""
         self.supported_formats = ['.csv', '.xlsx', '.xls', '.json', '.parquet']
+        self.excel_multi_tab_enabled = True
         logger.info("DataIngestionEngine initialized")
     
     def load_file(self, file_path: str) -> pd.DataFrame:
@@ -51,15 +100,33 @@ class DataIngestionEngine:
                 # Try different encodings and separators
                 data = self._load_csv_flexible(file_path)
             elif extension in ['.xlsx', '.xls']:
-                data = pd.read_excel(file_path)
+                if self.excel_multi_tab_enabled:
+                    # Check if file has multiple tabs
+                    import openpyxl
+                    wb = openpyxl.load_workbook(file_path, read_only=True)
+                    if len(wb.sheetnames) > 1:
+                        logger.info(f"Detected multi-tab Excel file with {len(wb.sheetnames)} sheets")
+                        data = self._load_excel_multi_tab(file_path)
+                    else:
+                        data = pd.read_excel(file_path)
+                    wb.close()
+                else:
+                    data = pd.read_excel(file_path)
             elif extension == '.json':
                 data = self._load_json_flexible(file_path)
             elif extension == '.parquet':
                 data = pd.read_parquet(file_path)
             else:
                 raise ValueError(f"Handler not implemented for {extension}")
-                
-            logger.info(f"Successfully loaded {len(data)} rows and {len(data.columns)} columns")
+            
+            # Log success based on data type
+            if isinstance(data, dict) and 'multi_tab_file' in data.get('metadata', {}):
+                logger.info(f"Successfully loaded multi-tab Excel file with {data['metadata']['total_tabs']} tabs")
+            elif hasattr(data, 'shape'):
+                logger.info(f"Successfully loaded {len(data)} rows and {len(data.columns)} columns")
+            else:
+                logger.info(f"Successfully loaded data from {file_path}")
+            
             return data
             
         except Exception as e:
@@ -310,6 +377,218 @@ class DataIngestionEngine:
         
         logger.info(f"Data cleaning completed. Shape: {cleaned_data.shape}")
         return cleaned_data
+
+    def _load_excel_multi_tab(self, file_path: str) -> Dict[str, Any]:
+        """Load Excel file with multi-tab processing and schema detection.
+        
+        Args:
+            file_path: Path to Excel file
+            
+        Returns:
+            Dictionary containing all tabs with metadata and potential schemas
+        """
+        import openpyxl
+        
+        result = {
+            'file_path': file_path,
+            'tabs': {},
+            'metadata': {
+                'total_tabs': 0,
+                'data_tabs': [],
+                'schema_tabs': [],
+                'empty_tabs': [],
+                'multi_tab_file': True
+            }
+        }
+        
+        try:
+            # Load workbook to get all sheet names
+            workbook = openpyxl.load_workbook(file_path, read_only=True)
+            sheet_names = workbook.sheetnames
+            result['metadata']['total_tabs'] = len(sheet_names)
+            
+            logger.info(f"Processing Excel file with {len(sheet_names)} tabs: {sheet_names}")
+            
+            for sheet_name in sheet_names:
+                try:
+                    # Read each sheet
+                    df = pd.read_excel(file_path, sheet_name=sheet_name)
+                    
+                    if df.empty or len(df.columns) == 0:
+                        result['metadata']['empty_tabs'].append(sheet_name)
+                        continue
+                    
+                    # Analyze sheet content for schema vs data
+                    sheet_analysis = self._analyze_excel_sheet_content(df, sheet_name)
+                    
+                    if sheet_analysis['is_schema_definition']:
+                        result['metadata']['schema_tabs'].append(sheet_name)
+                    else:
+                        result['metadata']['data_tabs'].append(sheet_name)
+                    
+                    result['tabs'][sheet_name] = {
+                        'data': df,
+                        'analysis': sheet_analysis,
+                        'metadata': self.analyze_structure(df),
+                        'source_reference': f"{file_path}#{sheet_name}"
+                    }
+                    
+                    logger.info(f"Processed sheet '{sheet_name}': {len(df)} rows, {len(df.columns)} columns")
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to process sheet '{sheet_name}': {e}")
+                    continue
+            
+            workbook.close()
+            
+        except Exception as e:
+            logger.error(f"Failed to load Excel file {file_path}: {e}")
+            raise
+        
+        return result
+
+    def _analyze_excel_sheet_content(self, df: pd.DataFrame, sheet_name: str) -> Dict[str, Any]:
+        """Analyze if Excel sheet contains schema definition or data.
+        
+        Args:
+            df: DataFrame containing sheet data
+            sheet_name: Name of the Excel sheet
+            
+        Returns:
+            Analysis results including schema detection
+        """
+        analysis = {
+            'is_schema_definition': False,
+            'is_data_table': False,
+            'schema_type': None,
+            'schema_elements': [],
+            'confidence': 0.0,
+            'sheet_name': sheet_name
+        }
+        
+        # Check for schema definition patterns in column names
+        schema_indicators = {
+            'data_dictionary': ['table_name', 'column_name', 'data_type', 'description', 'nullable', 'field', 'type'],
+            'entity_relationship': ['entity', 'attribute', 'relationship', 'cardinality', 'table', 'key'],
+            'process_mapping': ['process', 'activity', 'step', 'input', 'output', 'role', 'actor'],
+            'lookup_table': ['code', 'value', 'description', 'category', 'status'],
+            'configuration': ['parameter', 'setting', 'config', 'property', 'name', 'value']
+        }
+        
+        # Normalize column names for comparison
+        column_names = [col.lower().replace(' ', '_').replace('-', '_') for col in df.columns]
+        
+        # Check sheet name patterns
+        schema_sheet_names = ['schema', 'data_dictionary', 'metadata', 'config', 'mapping', 'lookup', 'reference']
+        if any(pattern in sheet_name.lower() for pattern in schema_sheet_names):
+            analysis['confidence'] += 0.3
+        
+        # Check column patterns
+        best_match_score = 0
+        best_match_type = None
+        
+        for schema_type, indicators in schema_indicators.items():
+            matches = sum(1 for indicator in indicators if any(indicator in col for col in column_names))
+            confidence = matches / len(indicators) if indicators else 0
+            
+            if confidence > best_match_score:
+                best_match_score = confidence
+                best_match_type = schema_type
+        
+        # Combine confidence scores
+        total_confidence = (analysis['confidence'] + best_match_score) / 2
+        
+        if total_confidence > 0.4 or best_match_score > 0.6:  # Schema definition threshold
+            analysis['is_schema_definition'] = True
+            analysis['schema_type'] = best_match_type
+            analysis['confidence'] = total_confidence
+            analysis['schema_elements'] = self._extract_excel_schema_elements(df, best_match_type)
+        else:
+            analysis['is_data_table'] = True
+        
+        return analysis
+
+    def _extract_excel_schema_elements(self, df: pd.DataFrame, schema_type: str) -> List[Dict[str, Any]]:
+        """Extract schema elements from Excel schema definition sheets.
+        
+        Args:
+            df: DataFrame containing schema information
+            schema_type: Type of schema detected
+            
+        Returns:
+            List of schema elements
+        """
+        elements = []
+        
+        # Map common column patterns to standardized names
+        column_mapping = {
+            'data_dictionary': {
+                'name_cols': ['column_name', 'field_name', 'field', 'name', 'attribute'],
+                'type_cols': ['data_type', 'type', 'dtype', 'column_type'],
+                'desc_cols': ['description', 'desc', 'comment', 'notes'],
+                'table_cols': ['table_name', 'table', 'entity', 'source']
+            },
+            'process_mapping': {
+                'name_cols': ['activity', 'step', 'task', 'process_step', 'name'],
+                'type_cols': ['type', 'category', 'phase'],
+                'desc_cols': ['description', 'desc', 'details'],
+                'input_cols': ['input', 'inputs', 'predecessor'],
+                'output_cols': ['output', 'outputs', 'successor']
+            }
+        }
+        
+        if schema_type in column_mapping:
+            mapping = column_mapping[schema_type]
+            df_cols = [col.lower().replace(' ', '_') for col in df.columns]
+            
+            # Find matching columns
+            name_col = self._find_matching_column(df_cols, mapping['name_cols'])
+            type_col = self._find_matching_column(df_cols, mapping.get('type_cols', []))
+            desc_col = self._find_matching_column(df_cols, mapping.get('desc_cols', []))
+            
+            if name_col:
+                original_name_col = df.columns[df_cols.index(name_col)]
+                
+                for _, row in df.iterrows():
+                    if pd.notna(row.get(original_name_col)):
+                        element = {
+                            'name': str(row.get(original_name_col, '')),
+                            'source': 'excel_schema_definition',
+                            'schema_type': schema_type
+                        }
+                        
+                        if type_col:
+                            original_type_col = df.columns[df_cols.index(type_col)]
+                            element['type'] = str(row.get(original_type_col, ''))
+                        
+                        if desc_col:
+                            original_desc_col = df.columns[df_cols.index(desc_col)]
+                            element['description'] = str(row.get(original_desc_col, ''))
+                        
+                        # Add any additional fields
+                        for key, value in row.items():
+                            if key not in [original_name_col, type_col, desc_col] and pd.notna(value):
+                                element[key.lower().replace(' ', '_')] = str(value)
+                        
+                        elements.append(element)
+        
+        return elements
+
+    def _find_matching_column(self, df_columns: List[str], target_patterns: List[str]) -> Optional[str]:
+        """Find the first column that matches any of the target patterns.
+        
+        Args:
+            df_columns: List of normalized column names
+            target_patterns: List of patterns to match
+            
+        Returns:
+            First matching column name or None
+        """
+        for pattern in target_patterns:
+            for col in df_columns:
+                if pattern in col:
+                    return col
+        return None
     
     def export_to_yaml(self, data: Dict[str, Any], file_path: str) -> None:
         """Export analysis results to YAML file.

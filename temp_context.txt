@@ -1,1 +1,0 @@
-Transportation order management schema analysis. This schema represents Oracle Transportation Management (OTM) system for handling transportation orders, releases, and shipments. The system manages order lifecycles from creation to completion.

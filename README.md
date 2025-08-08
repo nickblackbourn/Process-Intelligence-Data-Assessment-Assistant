@@ -1,16 +1,37 @@
 # Process Mining Event Log Assessment Assistant
 
-A Python tool designed to help process mining consultants efficiently assess and prepare data from various source systems to create high-quality event logs for process mining analysis.
+A comprehensive Python tool designed to help process mining consultants efficiently assess and prepare data from various source systems to create high-quality event logs for process mining analysis.
+
+## 🚀 **Version 2.0 - Enhanced Multi-Tab Excel & Output Management**
+
+### **New Features**
+- **🗂️ Multi-Tab Excel Processing**: Automatically processes all Excel sheets with embedded schema detection
+- **📁 Intelligent Output Management**: Organized file structure with date-based folders and contextual naming
+- **🔍 Enhanced Schema Detection**: Identifies data dictionary, process mapping, and lookup tables within Excel files
+- **🎯 UX-Focused Design**: Clean workspace organization and professional output management
 
 ## Features
 
-- **Multi-format Data Ingestion**: Parse CSV, Excel, JSON files, and database schemas
-- **AI-Powered Analysis**: Leverage Azure OpenAI to analyze data structures and business context
-- **Case ID Detection**: Identify potential unique identifiers for process cases
-- **Activity Discovery**: Find and categorize potential process activities in source data
-- **Attribute Mapping**: Discover valuable case and event attributes for process analysis
-- **Data Quality Assessment**: Evaluate data completeness and suitability for process mining
-- **Event Log Recommendations**: Generate structured recommendations in YAML format
+### **Core Capabilities**
+- **Multi-format Data Ingestion**: CSV, Excel (single/multi-tab), JSON, database schemas (XSD, SQL DDL)
+- **AI-Powered Analysis**: Leverage Azure OpenAI for intelligent data structure and business context analysis
+- **Advanced Excel Processing**: Multi-tab file handling with automatic schema detection and cross-tab analysis
+- **Comprehensive Assessment**: Case ID detection, activity discovery, attribute mapping, data quality evaluation
+- **Professional Output**: Organized results with intelligent naming and archiving
+
+### **Enhanced Excel Processing (v2.0)**
+- **Multi-Tab Analysis**: Processes all Excel sheets simultaneously
+- **Schema Detection**: Automatically identifies embedded schemas in metadata tabs
+- **Tab Classification**: Distinguishes between data tabs and schema definition tabs
+- **Cross-Tab Relationships**: Analyzes relationships between different Excel sheets
+- **Enterprise Ready**: Handles complex business documents with mixed content types
+
+### **Intelligent Output Management (v2.0)**
+- **Organized Structure**: Date-based folders with logical file hierarchy
+- **Contextual Naming**: File names reflect analyzed data sources
+- **Automatic Archiving**: Previous results preserved when running new analyses
+- **Latest Links**: Easy access to most recent results
+- **Multiple Formats**: YAML and JSON output options
 
 ## Installation
 
@@ -55,29 +76,73 @@ AZURE_OPENAI_API_VERSION=2024-02-15-preview
 
 ## Usage
 
-### Basic Assessment
-Analyze data files and get event log recommendations:
+### **Enhanced Assessment (v2.0)**
+New organized output management with intelligent file naming:
 ```bash
-python -m src.main assess --data-files data1.csv data2.xlsx --context "description.txt" --output results.yaml
+# Modern organized output (recommended)
+python -m src.main assess --data-files data.xlsx --output-name "Order_Analysis"
+
+# Multi-tab Excel processing
+python -m src.main assess --data-files complex_workbook.xlsx --output-name "Enterprise_Analysis"
+
+# Custom output directory and format
+python -m src.main assess --data-files data.csv --output-dir custom_results --output-format json
+
+# Legacy mode (backward compatibility)
+python -m src.main assess --data-files data.csv --output results.yaml
 ```
 
-### Interactive Mode
-Run in interactive mode for guided analysis:
+### **Multi-Tab Excel Processing**
+Enhanced Excel analysis with schema detection:
 ```bash
+# Process multi-tab Excel with embedded schemas
+python -m src.main assess --data-files enterprise_data.xlsx --output-name "Multi_Tab_Analysis"
+
+# Results automatically organized:
+# results/assessments/2025-08-08/Multi_Tab_Analysis_2025-08-08_15-30-45.yaml
+# results/assessments/latest/latest_assessment.yaml
+```
+
+### **Output Management**
+New commands for managing organized results:
+```bash
+# View organized file structure and statistics
+python -m src.main manage-outputs
+
+# Clean up old files (30+ days)
+python -m src.main manage-outputs --cleanup-days 30
+
+# Organize legacy messy files
+python -m src.main organize-legacy-files
+```
+
+### **Traditional Features**
+All existing functionality enhanced:
+```bash
+# Interactive mode for guided analysis
 python -m src.main interactive
+
+# Schema analysis with sample data
+python -m src.main assess --schema schema.sql --data-files sample_data.csv
+
+# Directory processing (batch analysis)
+python -m src.main assess --directory ./data --schema-files ./schemas --context process_description.txt
+
+# Demo mode to see capabilities
+python -m src.main demo
 ```
 
-### Schema Analysis
-Analyze database schemas along with sample data:
+### **Advanced Options**
 ```bash
-# Single schema file
-python -m src.main assess --schema schema.sql --data-files sample_data.csv --context process_description.txt
+# Keep history vs overwrite
+python -m src.main assess --data-files data.xlsx --keep-history  # Archives previous results
+python -m src.main assess --data-files data.xlsx --overwrite     # Replaces previous results
 
 # Multiple schema files (XSD, SQL, XML)
-python -m src.main assess --schema-files schema1.xsd schema2.sql --data-files sample_data.csv --context process_description.txt
+python -m src.main assess --schema-files schema1.xsd schema2.sql --data-files data.csv
 
-# Directory processing (recursively finds all data and schema files)
-python -m src.main assess --data-files ./data_directory/ --schema-files ./schemas/ --context process_description.txt
+# Comprehensive analysis with business context
+python -m src.main assess --data-files data.xlsx --context business_rules.txt --output-name "Full_Analysis"
 ```
 
 ## Development
@@ -111,16 +176,24 @@ mypy src/
 Process-Intelligence-Data-Assessment-Assistant/
 ├── src/
 │   ├── __init__.py
-│   ├── main.py                 # Main CLI application
+│   ├── main.py                    # Enhanced CLI with output management
 │   ├── core/
 │   │   ├── __init__.py
-│   │   ├── data_ingestion.py   # Data loading and initial analysis
-│   │   ├── schema_analyzer.py  # Database schema parsing
-│   │   ├── ai_analyzer.py      # Azure OpenAI integration
-│   │   └── event_log_analyzer.py # Process mining assessment
-│   └── utils/
-│       ├── __init__.py
-│       └── helpers.py          # Utility functions
+│   │   ├── data_ingestion.py      # Multi-tab Excel & data loading  
+│   │   ├── schema_analyzer.py     # Database schema parsing
+│   │   ├── ai_analyzer.py         # Azure OpenAI integration
+│   │   └── event_log_analyzer.py  # Process mining assessment
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── helpers.py             # Utility functions
+│   │   └── output_manager.py      # NEW: Intelligent output management
+│   └── results/                   # NEW: Organized output directory
+│       ├── assessments/
+│       │   ├── 2025-08-08/       # Date-based organization
+│       │   └── latest/           # Latest results
+│       ├── reports/              # Future: HTML/PDF reports
+│       ├── sql/                  # Future: Generated SQL
+│       └── archives/             # Archived results
 ├── tests/
 │   ├── __init__.py
 │   ├── test_main.py
@@ -129,15 +202,38 @@ Process-Intelligence-Data-Assessment-Assistant/
 │       ├── test_data_ingestion.py
 │       └── test_event_log_analyzer.py
 ├── data/
-│   ├── sample_processes.csv    # Sample event log data
-│   └── business_context.txt    # Sample business context
+│   ├── sample_processes.csv       # Sample event log data
+│   └── business_context.txt       # Sample business context
+├── test_data/                     # Test files for development
 ├── docs/
 ├── requirements.txt
 ├── setup.py
-├── .env.example               # Azure OpenAI configuration template
+├── .env.example                   # Azure OpenAI configuration template
 ├── README.md
 └── .gitignore
 ```
+
+## Key Enhancements (v2.0)
+
+### **Multi-Tab Excel Processing**
+- **Automatic Detection**: Identifies Excel files with multiple sheets
+- **Schema Recognition**: Detects embedded schemas in metadata tabs
+- **Tab Classification**: Data tabs vs schema definition tabs
+- **Cross-Reference**: Maintains relationships between tabs
+- **Enterprise Ready**: Handles complex business documents
+
+### **Intelligent Output Management**
+- **Organized Structure**: `results/assessments/YYYY-MM-DD/` format
+- **Contextual Naming**: Files named after analyzed sources
+- **History Management**: Automatic archiving of previous results
+- **Latest Access**: Symlinks to newest results for easy access
+- **Format Options**: YAML and JSON output support
+
+### **Enhanced User Experience**
+- **Clean Workspace**: No more file clutter in project root
+- **Predictable Organization**: Know exactly where results are saved
+- **Professional Output**: Enterprise-ready file management
+- **Backward Compatibility**: Legacy output options still supported
 
 ## Example Usage
 
