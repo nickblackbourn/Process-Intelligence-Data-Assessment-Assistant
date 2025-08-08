@@ -192,10 +192,12 @@ class DataIngestionEngine:
         case_id_keywords = ['id', 'case', 'order', 'ticket', 'instance', 'key']
         has_id_pattern = any(keyword in col.lower() for keyword in case_id_keywords)
         
-        if (((analysis['unique_percentage'] > 40 and has_id_pattern) or 
-             analysis['unique_percentage'] > 80) and 
-            analysis['missing_percentage'] < 10 and 
-            not is_timestamp_like):
+        # Relaxed case ID detection - allow lower uniqueness if name pattern matches
+        if has_id_pattern and analysis['missing_percentage'] < 10 and not is_timestamp_like:
+            analysis['could_be_identifier'] = True
+        elif (analysis['unique_percentage'] > 80 and 
+              analysis['missing_percentage'] < 10 and 
+              not is_timestamp_like):
             analysis['could_be_identifier'] = True
         
         # Check if could be timestamp
@@ -208,15 +210,24 @@ class DataIngestionEngine:
                 pass
             
             # Check for activity-like patterns
-            if (analysis['unique_count'] < len(col_data) * 0.5 and 
-                analysis['unique_count'] > 2 and 
+            activity_name_keywords = ['status', 'state', 'activity', 'event', 'action', 'step', 'phase', 'stage']
+            has_activity_name = any(keyword in col.lower() for keyword in activity_name_keywords)
+            
+            # Activity detection: reasonable number of unique values + activity-like name or content
+            if (analysis['unique_count'] >= 3 and 
+                analysis['unique_count'] <= len(col_data) * 0.8 and 
                 analysis['missing_percentage'] < 20):
-                # Check if values look like activities
-                sample_str = str(non_null_values.iloc[0]).lower() if len(non_null_values) > 0 else ""
-                activity_keywords = ['create', 'process', 'send', 'receive', 'approve', 'reject', 
-                                   'start', 'end', 'complete', 'cancel', 'update', 'delete']
-                if any(keyword in sample_str for keyword in activity_keywords):
+                
+                if has_activity_name:
                     analysis['could_be_activity'] = True
+                else:
+                    # Check if values look like activities
+                    sample_str = str(non_null_values.iloc[0]).lower() if len(non_null_values) > 0 else ""
+                    activity_content_keywords = ['create', 'process', 'send', 'receive', 'approve', 'reject', 
+                                               'start', 'end', 'complete', 'cancel', 'update', 'delete',
+                                               'submit', 'review', 'confirm', 'ship', 'deliver']
+                    if any(keyword in sample_str for keyword in activity_content_keywords):
+                        analysis['could_be_activity'] = True
         
         # Additional numeric analysis
         if col_data.dtype in ['int64', 'float64']:

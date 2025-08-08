@@ -3,7 +3,7 @@
 import logging
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 import numpy as np
@@ -31,7 +31,14 @@ def _convert_numpy_types(obj):
 
 
 class EventLogAnalyzer:
-    """Generates comprehensive assessments for process mining event log creation."""
+    """Streamlined analyzer for identifying process mining elements in data schemas.
+    
+    Core focus:
+    - Identify potential UIDs (Case IDs) 
+    - Find activities/events with timestamps
+    - Classify attributes for case/event context
+    - Generate SQL for event log extraction
+    """
     
     def __init__(self):
         """Initialize the EventLogAnalyzer."""
@@ -44,7 +51,7 @@ class EventLogAnalyzer:
         ai_insights: Dict[str, Any],
         business_context: str
     ) -> Dict[str, Any]:
-        """Generate comprehensive process mining assessment.
+        """Generate streamlined process mining assessment focused on core elements.
         
         Args:
             datasets: List of dataset information
@@ -53,36 +60,24 @@ class EventLogAnalyzer:
             business_context: Business context description
             
         Returns:
-            Complete assessment report
+            Streamlined assessment focused on UIDs, activities, and attributes
         """
-        logger.info("Generating comprehensive process mining assessment")
+        logger.info("Generating streamlined process mining assessment")
         
-        # Collect files considered (provenance)
-        files_considered = {
-            'data_files': [d.get('file_path') for d in datasets],
-            'schema_files': (schema_info or {}).get('source_files', []) if isinstance(schema_info, dict) else []
-        }
+        # CORE VALUE 1: Identify potential UIDs (Case IDs)
+        case_id_candidates = self._compile_case_id_candidates(datasets, schema_info, ai_insights)
         
-        # Build sections with normalization to avoid nulls in YAML
-        schema_analysis = self._analyze_schema(schema_info) if schema_info else {
-            'schema_type': 'none', 'summary': {}, 'process_mining_elements': {}
-        }
-        case_id_candidates = self._compile_case_id_candidates(datasets, schema_info, ai_insights) or []
-        activity_analysis = self._compile_activity_analysis(datasets, schema_info, ai_insights) or {}
-        activity_analysis.setdefault('activity_candidates', [])
-        activity_analysis.setdefault('recommended_activities', [])
-        activity_analysis.setdefault('activities_to_aggregate', [])
-        activity_analysis.setdefault('activity_patterns', [])
-        timestamp_analysis = self._compile_timestamp_analysis(datasets, schema_info, ai_insights) or {}
-        timestamp_analysis.setdefault('timestamp_candidates', [])
-        timestamp_analysis.setdefault('temporal_coverage', {})
-        timestamp_analysis.setdefault('timestamp_quality', {})
-        attribute_mapping = self._compile_attribute_mapping(datasets, schema_info, ai_insights) or {
-            'case_attributes': [], 'event_attributes': [], 'derived_attributes': []
-        }
-        data_quality = self._assess_data_quality(datasets)
-        readiness = self._assess_readiness(datasets, ai_insights)
+        # CORE VALUE 2: Identify activities/events with timestamps
+        activity_analysis = self._compile_activity_analysis(datasets, schema_info, ai_insights)
+        timestamp_analysis = self._compile_timestamp_analysis(datasets, schema_info, ai_insights)
         
+        # CORE VALUE 3: Identify attributes for context
+        case_attributes, event_attributes = self._compile_attributes(datasets, case_id_candidates, 
+                                                                   activity_analysis.get('activity_candidates', []), 
+                                                                   timestamp_analysis.get('timestamp_candidates', []),
+                                                                   schema_info)
+        
+        # Generate SQL for immediate use
         suggested_sql = self._generate_suggested_sql(
             case_id_candidates,
             activity_analysis.get('activity_candidates', []),
@@ -90,72 +85,40 @@ class EventLogAnalyzer:
             datasets
         )
         
+        # Simple readiness check
+        readiness = self._assess_readiness(datasets, ai_insights)
+        data_quality = self._assess_data_quality(datasets)
+        
+        # Streamlined assessment output
         assessment = {
             'metadata': {
                 'generated_at': datetime.now().isoformat(),
-                'assessment_version': '1.0',
-                'analyzer': 'Process Mining Event Log Assessment Assistant',
-                'files_considered': files_considered
+                'files_analyzed': [d.get('file_path') for d in datasets]
             },
-            'business_context': business_context or "",
-            'data_sources': self._analyze_data_sources(datasets),
-            'schema_analysis': schema_analysis,
-            'case_id_candidates': case_id_candidates,
-            'activity_analysis': activity_analysis,
-            'timestamp_analysis': timestamp_analysis,
-            'attribute_mapping': attribute_mapping,
-            'data_quality': data_quality,
-            'process_mining_readiness': readiness,
-            'recommendations': self._compile_recommendations(datasets, schema_info, ai_insights),
-            'transformation_plan': self._generate_transformation_plan(datasets, ai_insights),
+            
+            # Core findings - what the user needs
+            'case_id_candidates': case_id_candidates[:5],  # Top 5 potential UIDs
+            'activity_candidates': activity_analysis.get('activity_candidates', [])[:5],  # Top 5 activities
+            'timestamp_candidates': timestamp_analysis.get('timestamp_candidates', [])[:5],  # Top 5 timestamps
+            
+            'case_attributes': case_attributes[:10],  # Case-level context attributes
+            'event_attributes': event_attributes[:10],  # Event-level context attributes
+            
+            # Actionable output
             'suggested_sql': suggested_sql,
-            'next_steps': self._generate_next_steps(ai_insights),
-            'ai_insights': ai_insights if ai_insights.get('ai_analysis', False) else None
+            
+            # Simple status
+            'readiness': readiness,
+            'data_issues': data_quality.get('issues', []),
+            
+            # Optional AI insights
+            'ai_insights': ai_insights.get('next_steps', []) if ai_insights.get('ai_analysis') else []
         }
         
-        logger.info("Assessment generation completed")
-        
-        # Convert any numpy types to Python native types for YAML serialization
-        assessment = _convert_numpy_types(assessment)
-        
-        return assessment
+        logger.info("Streamlined assessment completed")
+        return _convert_numpy_types(assessment)
     
-    def _analyze_data_sources(self, datasets: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Analyze the available data sources."""
-        
-        analysis = {
-            'total_files': len(datasets),
-            'file_details': [],
-            'overall_statistics': {
-                'total_rows': 0,
-                'total_columns': 0,
-                'unique_columns': set()
-            }
-        }
-        
-        for dataset in datasets:
-            metadata = dataset.get('metadata', {})
-            file_info = {
-                'file_path': dataset['file_path'],
-                'format': dataset['file_path'].split('.')[-1].upper(),
-                'shape': metadata.get('shape', {}),
-                'data_types': metadata.get('data_types', {}),
-                'missing_data': metadata.get('missing_data', {}),
-                'columns': list(metadata.get('columns', {}).keys()),
-                'data_quality_score': self._calculate_file_quality_score(metadata)
-            }
-            
-            analysis['file_details'].append(file_info)
-            
-            # Update overall statistics
-            shape = metadata.get('shape', {})
-            analysis['overall_statistics']['total_rows'] += shape.get('rows', 0)
-            analysis['overall_statistics']['total_columns'] += shape.get('columns', 0)
-            analysis['overall_statistics']['unique_columns'].update(metadata.get('columns', {}).keys())
-        
-        analysis['overall_statistics']['unique_columns'] = list(analysis['overall_statistics']['unique_columns'])
-        
-        return analysis
+
     
     def _analyze_schema(self, schema_info: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze schema information for process mining relevance."""
@@ -238,11 +201,26 @@ class EventLogAnalyzer:
         schema_info: Optional[Dict[str, Any]],
         ai_insights: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        """Compile case ID candidates from all sources."""
+        """Compile potential UID candidates from schema, AI analysis, and data analysis."""
         
         candidates = []
         
-        # From AI analysis
+        # PRIORITY 1: Schema analysis results (PRIMARY SOURCE)
+        if schema_info:
+            schema_analysis = self._analyze_schema(schema_info)
+            schema_elements = schema_analysis.get('process_mining_elements', {})
+            
+            # Extract case ID candidates from schema
+            for candidate in schema_elements.get('case_id_candidates', []):
+                candidates.append({
+                    'table': candidate['source_file'],
+                    'column': candidate['name'],
+                    'confidence': candidate['confidence'],
+                    'reasoning': candidate['reason'],
+                    'source': 'schema_analysis'
+                })
+        
+        # PRIORITY 2: AI analysis (if available)
         if ai_insights.get('ai_analysis') and 'case_id_analysis' in ai_insights:
             case_analysis = ai_insights['case_id_analysis']
             
@@ -255,7 +233,7 @@ class EventLogAnalyzer:
                 alt['source'] = 'ai_alternative'
                 candidates.append(alt)
         
-        # From data analysis
+        # PRIORITY 3: Data analysis - look for potential identifiers (validation)
         for dataset in datasets:
             metadata = dataset.get('metadata', {})
             for col in metadata.get('potential_identifiers', []):
@@ -264,7 +242,7 @@ class EventLogAnalyzer:
                     'table': dataset['file_path'],
                     'column': col,
                     'confidence': self._calculate_case_id_confidence(col, col_info),
-                    'reasoning': 'Data structure analysis',
+                    'reasoning': 'Data structure analysis - potential unique identifier',
                     'source': 'data_analysis'
                 })
         
@@ -275,9 +253,7 @@ class EventLogAnalyzer:
             if key not in unique_candidates or candidate['confidence'] > unique_candidates[key]['confidence']:
                 unique_candidates[key] = candidate
         
-        sorted_candidates = sorted(unique_candidates.values(), key=lambda x: x['confidence'], reverse=True)
-        
-        return sorted_candidates[:10]  # Top 10 candidates
+        return sorted(unique_candidates.values(), key=lambda x: x['confidence'], reverse=True)[:25]  # Top 25
     
     def _compile_activity_analysis(
         self,
@@ -285,7 +261,7 @@ class EventLogAnalyzer:
         schema_info: Optional[Dict[str, Any]],
         ai_insights: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Compile activity analysis from all sources."""
+        """Compile activity candidates from schema, AI analysis, and data analysis."""
         
         analysis = {
             'activity_candidates': [],
@@ -294,7 +270,22 @@ class EventLogAnalyzer:
             'activity_patterns': []
         }
         
-        # From AI analysis
+        # PRIORITY 1: Schema analysis results (PRIMARY SOURCE)
+        if schema_info:
+            schema_analysis = self._analyze_schema(schema_info)
+            schema_elements = schema_analysis.get('process_mining_elements', {})
+            
+            # Extract activity candidates from schema
+            for candidate in schema_elements.get('activity_candidates', []):
+                analysis['activity_candidates'].append({
+                    'table': candidate['source_file'],
+                    'column': candidate['name'],
+                    'confidence': candidate['confidence'],
+                    'reasoning': candidate['reason'],
+                    'source': 'schema_analysis'
+                })
+        
+        # PRIORITY 2: AI analysis (if available)
         if ai_insights.get('ai_analysis') and 'activity_analysis' in ai_insights:
             activity_ai = ai_insights['activity_analysis']
             
@@ -307,9 +298,10 @@ class EventLogAnalyzer:
                 alt['source'] = 'ai_alternative'
                 analysis['activity_candidates'].append(alt)
             
+            analysis['recommended_activities'] = activity_ai.get('recommended_activities', [])
             analysis['activities_to_aggregate'] = activity_ai.get('aggregation_suggestions', [])
         
-        # From data analysis
+        # PRIORITY 3: Data analysis (validation)
         for dataset in datasets:
             metadata = dataset.get('metadata', {})
             for col in metadata.get('potential_activities', []):
@@ -335,7 +327,7 @@ class EventLogAnalyzer:
             if key not in unique_candidates or candidate['confidence'] > unique_candidates[key]['confidence']:
                 unique_candidates[key] = candidate
         
-        analysis['activity_candidates'] = sorted(unique_candidates.values(), key=lambda x: x['confidence'], reverse=True)
+        analysis['activity_candidates'] = sorted(unique_candidates.values(), key=lambda x: x['confidence'], reverse=True)[:25]
         
         return analysis
     
@@ -345,15 +337,30 @@ class EventLogAnalyzer:
         schema_info: Optional[Dict[str, Any]],
         ai_insights: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Compile timestamp analysis from all sources."""
+        """Compile timestamp candidates from schema, AI analysis, and data analysis."""
         
         analysis = {
             'timestamp_candidates': [],
             'temporal_coverage': {},
-            'timestamp_quality': {}
+            'timestamp_patterns': []
         }
         
-        # From AI analysis
+        # PRIORITY 1: Schema analysis results (PRIMARY SOURCE)
+        if schema_info:
+            schema_analysis = self._analyze_schema(schema_info)
+            schema_elements = schema_analysis.get('process_mining_elements', {})
+            
+            # Extract timestamp candidates from schema
+            for candidate in schema_elements.get('timestamp_candidates', []):
+                analysis['timestamp_candidates'].append({
+                    'table': candidate['source_file'],
+                    'column': candidate['name'],
+                    'confidence': candidate['confidence'],
+                    'reasoning': candidate['reason'],
+                    'source': 'schema_analysis'
+                })
+        
+        # PRIORITY 2: AI analysis (if available)
         if ai_insights.get('ai_analysis') and 'timestamp_analysis' in ai_insights:
             timestamp_ai = ai_insights['timestamp_analysis']
             
@@ -366,7 +373,7 @@ class EventLogAnalyzer:
                 alt['source'] = 'ai_alternative'
                 analysis['timestamp_candidates'].append(alt)
         
-        # From data analysis
+        # PRIORITY 3: Data analysis (validation)
         for dataset in datasets:
             metadata = dataset.get('metadata', {})
             for col in metadata.get('potential_timestamps', []):
@@ -379,398 +386,145 @@ class EventLogAnalyzer:
                     'source': 'data_analysis'
                 })
                 
-                # Analyze temporal coverage
-                if 'data' in dataset and col in dataset['data'].columns:
+                # Analyze temporal coverage in the data
+                if 'data' in dataset:
                     coverage = self._analyze_temporal_coverage(dataset['data'], col)
                     if coverage:
-                        analysis['temporal_coverage'][f"{dataset['file_path']}::{col}"] = coverage
+                        analysis['temporal_coverage'][col] = coverage
         
-        # Remove duplicates
+        # Remove duplicates and sort by confidence
         unique_candidates = {}
         for candidate in analysis['timestamp_candidates']:
             key = f"{candidate['table']}::{candidate['column']}"
             if key not in unique_candidates or candidate['confidence'] > unique_candidates[key]['confidence']:
                 unique_candidates[key] = candidate
         
-        analysis['timestamp_candidates'] = sorted(unique_candidates.values(), key=lambda x: x['confidence'], reverse=True)
+        analysis['timestamp_candidates'] = sorted(unique_candidates.values(), key=lambda x: x['confidence'], reverse=True)[:25]
         
         return analysis
     
-    def _compile_attribute_mapping(
+
+    
+    def _assess_data_quality(self, datasets: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Simple data quality check - just flag obvious issues."""
+        
+        issues = []
+        
+        for dataset in datasets:
+            metadata = dataset.get('metadata', {})
+            missing_pct = metadata.get('missing_data', {}).get('missing_percentage', 0)
+            
+            if missing_pct > 30:  # Only flag serious issues
+                issues.append(f"High missing data in {dataset['file_path']}: {missing_pct:.1f}%")
+        
+        return {
+            'issues': issues,
+            'has_critical_issues': len(issues) > 0
+        }
+    
+    def _assess_readiness(self, datasets: List[Dict[str, Any]], ai_insights: Dict[str, Any]) -> Dict[str, Any]:
+        """Simple readiness check - do we have the basics?"""
+        
+        # Check if we found essential elements
+        has_case_id = any(dataset.get('metadata', {}).get('potential_identifiers') for dataset in datasets)
+        has_activity = any(dataset.get('metadata', {}).get('potential_activities') for dataset in datasets)
+        has_timestamp = any(dataset.get('metadata', {}).get('potential_timestamps') for dataset in datasets)
+        
+        missing = []
+        if not has_case_id:
+            missing.append('Case ID')
+        if not has_activity:
+            missing.append('Activity')
+        if not has_timestamp:
+            missing.append('Timestamp')
+        
+        return {
+            'ready': len(missing) == 0,
+            'missing_elements': missing
+        }
+    
+    def _compile_attributes(
         self,
         datasets: List[Dict[str, Any]],
-        schema_info: Optional[Dict[str, Any]],
-        ai_insights: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Compile attribute mapping recommendations."""
+        case_candidates: List[Dict[str, Any]],
+        activity_candidates: List[Dict[str, Any]],
+        timestamp_candidates: List[Dict[str, Any]],
+        schema_info: Optional[Dict[str, Any]] = None
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """Compile context attributes from schema and data - case-level and event-level.
         
-        mapping = {
-            'case_attributes': [],
-            'event_attributes': [],
-            'derived_attributes': []
-        }
+        Returns:
+            Tuple of (case_attributes, event_attributes)
+        """
+        case_attributes = []
+        event_attributes = []
         
-        # From AI analysis
-        if ai_insights.get('ai_analysis') and 'attribute_recommendations' in ai_insights:
-            attr_rec = ai_insights['attribute_recommendations']
-            mapping['case_attributes'] = attr_rec.get('case_attributes', [])
-            mapping['event_attributes'] = attr_rec.get('event_attributes', [])
+        # Get column names that are already identified as core elements
+        identified_elements = set()
+        for candidates in [case_candidates, activity_candidates, timestamp_candidates]:
+            for candidate in candidates:
+                identified_elements.add(candidate.get('column', '').lower())
         
-        # From data analysis - identify potential attributes
+        # PRIORITY 1: Schema attributes (PRIMARY SOURCE)
+        if schema_info:
+            schema_analysis = self._analyze_schema(schema_info)
+            schema_elements = schema_analysis.get('process_mining_elements', {})
+            
+            for attr in schema_elements.get('attribute_candidates', []):
+                attr_name = attr['name'].lower()
+                if attr_name not in identified_elements:
+                    attribute_info = {
+                        'table': attr['source_file'],
+                        'column': attr['name'],
+                        'data_type': attr.get('type', 'unknown'),
+                        'source': 'schema_analysis',
+                        'category': attr.get('category', 'general_attribute')
+                    }
+                    
+                    # Categorize as case or event attribute
+                    if attribute_info['category'] == 'case_attribute':
+                        case_attributes.append(attribute_info)
+                    elif attribute_info['category'] == 'event_attribute':
+                        event_attributes.append(attribute_info)
+                    else:
+                        # Default categorization for general attributes
+                        case_attributes.append(attribute_info)
+        
+        # PRIORITY 2: Data-derived attributes (validation/enhancement)
         for dataset in datasets:
             metadata = dataset.get('metadata', {})
             
             for col_name, col_info in metadata.get('columns', {}).items():
-                # Skip columns that are already identified as case_id, activity, or timestamp
-                if col_name in (metadata.get('potential_identifiers', []) + 
-                              metadata.get('potential_activities', []) + 
-                              metadata.get('potential_timestamps', [])):
+                # Skip columns already identified as core elements
+                if col_name.lower() in identified_elements:
                     continue
                 
                 attribute_info = {
                     'table': dataset['file_path'],
                     'column': col_name,
-                    'data_type': col_info.get('dtype'),
-                    'unique_percentage': col_info.get('unique_percentage', 0),
+                    'data_type': col_info.get('dtype', 'unknown'),
+                    'unique_values': col_info.get('unique_count', 0),
                     'missing_percentage': col_info.get('missing_percentage', 0),
-                    'reasoning': 'Data analysis'
+                    'source': 'data_analysis',
+                    'category': self._categorize_attribute(col_name)
                 }
                 
-                # Classify as case or event attribute based on characteristics
-                if col_info.get('unique_percentage', 0) < 50:  # Low variability suggests case attribute
-                    mapping['case_attributes'].append(attribute_info)
-                else:  # High variability suggests event attribute
-                    mapping['event_attributes'].append(attribute_info)
+                # Simple classification: low variability = case attribute, high = event attribute
+                unique_pct = col_info.get('unique_percentage', 0)
+                if unique_pct < 20:  # Low variability - likely case attribute
+                    case_attributes.append(attribute_info)
+                else:  # Higher variability - likely event attribute
+                    event_attributes.append(attribute_info)
         
-        return mapping
+        return case_attributes, event_attributes
     
-    def _assess_data_quality(self, datasets: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Assess overall data quality for process mining."""
-        
-        quality_assessment = {
-            'overall_score': 0.0,
-            'completeness_score': 0.0,
-            'consistency_score': 0.0,
-            'validity_score': 0.0,
-            'issues': [],
-            'recommendations': []
-        }
-        
-        total_completeness = 0
-        total_files = len(datasets)
-        
-        for dataset in datasets:
-            metadata = dataset.get('metadata', {})
-            missing_data = metadata.get('missing_data', {})
-            
-            # Completeness score (inverse of missing data percentage)
-            missing_pct = missing_data.get('missing_percentage', 0)
-            completeness = 100 - missing_pct
-            total_completeness += completeness
-            
-            # Check for data quality issues
-            if missing_pct > 20:
-                quality_assessment['issues'].append(
-                    f"High missing data in {dataset['file_path']}: {missing_pct:.1f}%"
-                )
-            
-            quality_indicators = metadata.get('data_quality_indicators', {})
-            if quality_indicators.get('duplicate_percentage', 0) > 5:
-                quality_assessment['issues'].append(
-                    f"High duplicate rate in {dataset['file_path']}: {quality_indicators['duplicate_percentage']:.1f}%"
-                )
-        
-        # Calculate scores
-        quality_assessment['completeness_score'] = total_completeness / total_files if total_files > 0 else 0
-        quality_assessment['consistency_score'] = 85.0  # Placeholder - would need more complex analysis
-        quality_assessment['validity_score'] = 90.0   # Placeholder - would need domain validation
-        
-        # Overall score (weighted average)
-        weights = {'completeness': 0.4, 'consistency': 0.3, 'validity': 0.3}
-        quality_assessment['overall_score'] = (
-            quality_assessment['completeness_score'] * weights['completeness'] +
-            quality_assessment['consistency_score'] * weights['consistency'] +
-            quality_assessment['validity_score'] * weights['validity']
-        )
-        
-        # Generate recommendations
-        if quality_assessment['overall_score'] < 70:
-            quality_assessment['recommendations'].append("Improve data quality before process mining analysis")
-        
-        if quality_assessment['completeness_score'] < 80:
-            quality_assessment['recommendations'].append("Address missing data issues")
-        
-        if len(quality_assessment['issues']) > 0:
-            quality_assessment['recommendations'].append("Review and resolve identified data quality issues")
-        
-        return quality_assessment
+
     
-    def _assess_readiness(self, datasets: List[Dict[str, Any]], ai_insights: Dict[str, Any]) -> Dict[str, Any]:
-        """Assess readiness for process mining."""
-        
-        readiness = {
-            'score': 0.0,
-            'level': 'Not Ready',
-            'criteria': {
-                'has_case_id': False,
-                'has_activity': False,
-                'has_timestamp': False,
-                'sufficient_data': False,
-                'data_quality_acceptable': False
-            },
-            'missing_elements': [],
-            'recommendations': []
-        }
-        
-        # AI-based signals
-        ai_case = bool(ai_insights.get('case_id_analysis', {}).get('primary_recommendation'))
-        ai_act = bool(ai_insights.get('activity_analysis', {}).get('primary_recommendation'))
-        ai_ts = bool(ai_insights.get('timestamp_analysis', {}).get('primary_recommendation'))
-        
-        # Heuristic fallback from dataset metadata
-        meta_case = any(dataset.get('metadata', {}).get('potential_identifiers') for dataset in datasets)
-        meta_act = any(dataset.get('metadata', {}).get('potential_activities') for dataset in datasets)
-        meta_ts = any(dataset.get('metadata', {}).get('potential_timestamps') for dataset in datasets)
-        
-        has_case_candidates = ai_case or meta_case
-        has_activity_candidates = ai_act or meta_act
-        has_timestamp_candidates = ai_ts or meta_ts
-        
-        # Data volume
-        total_rows = sum(dataset.get('metadata', {}).get('shape', {}).get('rows', 0) for dataset in datasets)
-        sufficient_data = total_rows >= 100  # Minimum threshold
-        
-        # Data quality (fallback if AI not available)
-        dq_from_ai = ai_insights.get('process_mining_readiness', {}).get('score')
-        data_quality_acceptable = (dq_from_ai is not None and dq_from_ai >= 0.7)
-        if dq_from_ai is None:
-            # derive from file quality scores
-            file_scores = [self._calculate_file_quality_score(dataset.get('metadata', {})) for dataset in datasets]
-            avg_score = sum(file_scores) / len(file_scores) if file_scores else 0.0
-            data_quality_acceptable = avg_score >= 0.7
-        
-        # Update criteria
-        readiness['criteria'].update({
-            'has_case_id': has_case_candidates,
-            'has_activity': has_activity_candidates,
-            'has_timestamp': has_timestamp_candidates,
-            'sufficient_data': sufficient_data,
-            'data_quality_acceptable': data_quality_acceptable
-        })
-        
-        # Calculate score & level
-        criteria_met = sum(1 for v in readiness['criteria'].values() if v)
-        readiness['score'] = criteria_met / len(readiness['criteria'])
-        if readiness['score'] >= 0.8:
-            readiness['level'] = 'Ready'
-        elif readiness['score'] >= 0.6:
-            readiness['level'] = 'Nearly Ready'
-        elif readiness['score'] >= 0.4:
-            readiness['level'] = 'Requires Work'
-        else:
-            readiness['level'] = 'Not Ready'
-        
-        # Missing elements
-        if not has_case_candidates:
-            readiness['missing_elements'].append('Case ID')
-        if not has_activity_candidates:
-            readiness['missing_elements'].append('Activity information')
-        if not has_timestamp_candidates:
-            readiness['missing_elements'].append('Timestamp data')
-        if not sufficient_data:
-            readiness['missing_elements'].append('Sufficient data volume')
-        if not data_quality_acceptable:
-            readiness['missing_elements'].append('Acceptable data quality')
-        
-        return readiness
+
     
-    def _compile_recommendations(
-        self,
-        datasets: List[Dict[str, Any]],
-        schema_info: Optional[Dict[str, Any]],
-        ai_insights: Dict[str, Any]
-    ) -> List[str]:
-        """Compile actionable recommendations."""
-        
-        recommendations = []
-        
-        # From AI insights
-        if ai_insights.get('ai_analysis'):
-            ai_recs = ai_insights.get('transformation_recommendations', [])
-            recommendations.extend(ai_recs)
-        
-        # Data quality recommendations
-        for dataset in datasets:
-            metadata = dataset.get('metadata', {})
-            missing_pct = metadata.get('missing_data', {}).get('missing_percentage', 0)
-            
-            if missing_pct > 20:
-                recommendations.append(f"Address missing data in {dataset['file_path']} ({missing_pct:.1f}% missing)")
-        
-        # Essential element recommendations
-        case_id_found = bool(ai_insights.get('case_id_analysis', {}).get('primary_recommendation'))
-        activity_found = bool(ai_insights.get('activity_analysis', {}).get('primary_recommendation'))
-        timestamp_found = bool(ai_insights.get('timestamp_analysis', {}).get('primary_recommendation'))
-        
-        if not case_id_found:
-            recommendations.append("Identify or create a unique case identifier for process instances")
-        
-        if not activity_found:
-            recommendations.append("Identify columns that represent process activities or events")
-        
-        if not timestamp_found:
-            recommendations.append("Ensure timestamp information is available for all events")
-        
-        # Remove duplicates while preserving order
-        seen = set()
-        unique_recommendations = []
-        for rec in recommendations:
-            if rec not in seen:
-                seen.add(rec)
-                unique_recommendations.append(rec)
-        
-        return unique_recommendations[:15]  # Limit to top 15 recommendations
+
     
-    def _generate_transformation_plan(self, datasets: List[Dict[str, Any]], ai_insights: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate a data transformation plan."""
-        
-        plan = {
-            'overview': 'Step-by-step plan to transform source data into process mining event log',
-            'steps': [],
-            'estimated_effort': 'Medium',
-            'prerequisites': []
-        }
-        
-        # Add transformation steps based on analysis
-        step_counter = 1
-        
-        # Step 1: Data preparation
-        plan['steps'].append({
-            'step': step_counter,
-            'title': 'Data Preparation',
-            'description': 'Clean and prepare source data files',
-            'actions': [
-                'Remove duplicate records',
-                'Handle missing values',
-                'Standardize data formats',
-                'Validate data integrity'
-            ]
-        })
-        step_counter += 1
-        
-        # Step 2: Case ID identification/creation
-        case_id_rec = ai_insights.get('case_id_analysis', {}).get('primary_recommendation')
-        if case_id_rec:
-            plan['steps'].append({
-                'step': step_counter,
-                'title': 'Case ID Mapping',
-                'description': f"Use {case_id_rec['column']} from {case_id_rec['table']} as Case ID",
-                'actions': [
-                    f"Extract {case_id_rec['column']} as case_id",
-                    'Validate uniqueness and consistency',
-                    'Handle any missing case IDs'
-                ]
-            })
-        else:
-            plan['steps'].append({
-                'step': step_counter,
-                'title': 'Case ID Creation',
-                'description': 'Create case identifiers from available data',
-                'actions': [
-                    'Analyze data patterns to identify process instances',
-                    'Create composite case IDs if necessary',
-                    'Validate case boundaries'
-                ]
-            })
-        step_counter += 1
-        
-        # Step 3: Activity mapping
-        activity_rec = ai_insights.get('activity_analysis', {}).get('primary_recommendation')
-        if activity_rec:
-            plan['steps'].append({
-                'step': step_counter,
-                'title': 'Activity Mapping',
-                'description': f"Map activities from {activity_rec['column']} in {activity_rec['table']}",
-                'actions': [
-                    f"Extract and standardize activity names from {activity_rec['column']}",
-                    'Create activity hierarchy if needed',
-                    'Validate activity completeness'
-                ]
-            })
-        step_counter += 1
-        
-        # Step 4: Timestamp processing
-        timestamp_rec = ai_insights.get('timestamp_analysis', {}).get('primary_recommendation')
-        if timestamp_rec:
-            plan['steps'].append({
-                'step': step_counter,
-                'title': 'Timestamp Processing',
-                'description': f"Process timestamps from {timestamp_rec['column']}",
-                'actions': [
-                    f"Convert {timestamp_rec['column']} to standard datetime format",
-                    'Validate temporal ordering',
-                    'Handle timezone considerations'
-                ]
-            })
-        step_counter += 1
-        
-        # Step 5: Event log creation
-        plan['steps'].append({
-            'step': step_counter,
-            'title': 'Event Log Assembly',
-            'description': 'Combine all elements into final event log',
-            'actions': [
-                'Merge case IDs, activities, and timestamps',
-                'Add case and event attributes',
-                'Validate event log structure',
-                'Export in standard format (CSV/XES)'
-            ]
-        })
-        
-        return plan
-    
-    def _generate_next_steps(self, ai_insights: Dict[str, Any]) -> List[str]:
-        """Generate immediate next steps."""
-        
-        next_steps = []
-        
-        # From AI insights
-        if ai_insights.get('ai_analysis') and 'next_steps' in ai_insights:
-            next_steps.extend(ai_insights['next_steps'])
-        
-        # Default next steps
-        default_steps = [
-            "Review and validate the recommended case ID, activity, and timestamp mappings",
-            "Prepare data transformation scripts based on the transformation plan",
-            "Test the event log creation process with a sample of data",
-            "Validate the resulting event log with process mining tools",
-            "Iterate and refine the mapping based on initial results"
-        ]
-        
-        # Combine and deduplicate
-        all_steps = next_steps + default_steps
-        seen = set()
-        unique_steps = []
-        for step in all_steps:
-            if step not in seen:
-                seen.add(step)
-                unique_steps.append(step)
-        
-        return unique_steps[:10]  # Limit to top 10 steps
-    
-    # Helper methods for confidence calculations
-    
-    def _calculate_file_quality_score(self, metadata: Dict[str, Any]) -> float:
-        """Calculate quality score for a file."""
-        missing_pct = metadata.get('missing_data', {}).get('missing_percentage', 0)
-        completeness = 100 - missing_pct
-        
-        quality_indicators = metadata.get('data_quality_indicators', {})
-        duplicate_pct = quality_indicators.get('duplicate_percentage', 0)
-        
-        # Simple quality score calculation
-        score = (completeness - duplicate_pct) / 100
-        return max(0.0, min(1.0, score))
+
     
     def _calculate_case_id_confidence(self, col_name: str, col_info: Dict[str, Any]) -> float:
         """Calculate confidence for case ID candidate."""
@@ -826,116 +580,115 @@ class EventLogAnalyzer:
         
         return min(1.0, score)
     
-    def _analyze_activity_patterns(self, data: pd.DataFrame, activity_col: str) -> List[Dict[str, Any]]:
-        """Analyze patterns in activity data."""
-        if activity_col not in data.columns:
-            return []
-        
-        patterns = []
-        
-        # Get activity distribution
-        activity_counts = data[activity_col].value_counts()
-        
-        if len(activity_counts) > 0:
-            patterns.append({
-                'type': 'activity_distribution',
-                'total_activities': len(activity_counts),
-                'most_common': activity_counts.head().to_dict(),
-                'activity_balance': float(activity_counts.std() / activity_counts.mean()) if activity_counts.mean() > 0 else 0.0
-            })
-        
-        return patterns
+
     
-    def _analyze_temporal_coverage(self, data: pd.DataFrame, timestamp_col: str) -> Dict[str, Any]:
-        """Analyze temporal coverage of timestamp data."""
-        if timestamp_col not in data.columns:
-            return {}
-        
-        try:
-            # Try to convert to datetime
-            timestamps = pd.to_datetime(data[timestamp_col], errors='coerce')
-            valid_timestamps = timestamps.dropna()
-            
-            if len(valid_timestamps) == 0:
-                return {'error': 'No valid timestamps found'}
-            
-            coverage = {
-                'start_date': valid_timestamps.min().isoformat(),
-                'end_date': valid_timestamps.max().isoformat(),
-                'date_range_days': int((valid_timestamps.max() - valid_timestamps.min()).days),
-                'valid_percentage': float((len(valid_timestamps) / len(data)) * 100),
-                'temporal_gaps': self._find_temporal_gaps(valid_timestamps)
-            }
-            
-            return coverage
-            
-        except Exception:
-            return {'error': 'Could not parse timestamps'}
+
     
-    def _find_temporal_gaps(self, timestamps: pd.Series) -> List[str]:
-        """Find potential gaps in temporal data."""
-        if len(timestamps) < 2:
-            return []
-        
-        gaps = []
-        sorted_timestamps = timestamps.sort_values()
-        
-        # Look for large gaps (more than 7 days)
-        time_diffs = sorted_timestamps.diff()
-        large_gaps = time_diffs[time_diffs > pd.Timedelta(days=7)]
-        
-        for gap in large_gaps.head(5):  # Report up to 5 largest gaps
-            gaps.append(f"Gap of {gap.days} days found")
-        
-        return gaps
+
     
     def _analyze_elements_for_process_mining(self, elements: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Analyze schema elements for process mining potential."""
+        """Analyze schema elements for process mining potential with enhanced keyword matching."""
         
         case_id_candidates = []
         activity_candidates = []
         timestamp_candidates = []
         attribute_candidates = []
         
-        # Process mining related keywords
-        case_keywords = ['id', 'case', 'order', 'ticket', 'transaction', 'application', 'request', 'invoice']
-        activity_keywords = ['status', 'state', 'activity', 'event', 'action', 'step', 'phase', 'stage']
-        timestamp_keywords = ['date', 'time', 'timestamp', 'created', 'updated', 'modified', 'when']
+        # Enhanced keyword sets for better domain coverage
+        case_keywords = [
+            'id', 'gid', 'case', 'order', 'ticket', 'transaction', 'application', 'request', 'invoice',
+            'shipment', 'release', 'instance', 'number', 'ref', 'reference', 'key', 'identifier'
+        ]
+        
+        activity_keywords = [
+            'status', 'state', 'activity', 'event', 'action', 'step', 'phase', 'stage', 'method', 
+            'type', 'code', 'instruction', 'service', 'mode', 'process', 'transaction'
+        ]
+        
+        timestamp_keywords = [
+            'date', 'time', 'timestamp', 'created', 'updated', 'modified', 'when', 'effective', 
+            'expiration', 'appointment', 'delivery', 'pickup', 'schedule', 'start', 'end'
+        ]
         
         for element in elements:
-            element_name = element['name'].lower()
-            element_type = (element.get('type') or '').lower()  # Handle None types
-            source_file = element['source_file']
+            element_name = element['name'].lower() if element.get('name') else ''
+            element_type = (element.get('type') or '').lower()
+            source_file = element.get('source_file', 'unknown')
             
-            # Check for case ID candidates
+            if not element_name:  # Skip elements without names
+                continue
+            
+            # Enhanced case ID detection with confidence scoring
+            case_confidence = 0.0
             if any(keyword in element_name for keyword in case_keywords):
-                if 'id' in element_name or 'number' in element_name:
+                if 'gid' in element_name:  # Global ID is very strong indicator
+                    case_confidence = 0.95
+                elif element_name.endswith('id') or element_name.endswith('gid'):
+                    case_confidence = 0.9
+                elif 'id' in element_name and ('order' in element_name or 'trans' in element_name):
+                    case_confidence = 0.85
+                elif 'id' in element_name:
+                    case_confidence = 0.7
+                elif 'number' in element_name or 'ref' in element_name:
+                    case_confidence = 0.6
+                else:
+                    case_confidence = 0.5
+                
+                if case_confidence > 0.5:
                     case_id_candidates.append({
                         'name': element['name'],
                         'source_file': os.path.basename(source_file),
-                        'confidence': 0.8,
-                        'reason': f"Contains case-related keywords: {element_name}"
+                        'confidence': case_confidence,
+                        'reason': f"Case ID indicator: {element_name} (confidence: {case_confidence:.2f})"
                     })
             
-            # Check for activity candidates
+            # Enhanced activity detection
+            activity_confidence = 0.0
             if any(keyword in element_name for keyword in activity_keywords):
-                activity_candidates.append({
-                    'name': element['name'],
-                    'source_file': os.path.basename(source_file),
-                    'confidence': 0.7,
-                    'reason': f"Contains activity-related keywords: {element_name}"
-                })
+                if 'transactioncode' in element_name.replace('_', '').replace('-', ''):
+                    activity_confidence = 0.9
+                elif 'status' in element_name or 'state' in element_name:
+                    activity_confidence = 0.8
+                elif 'type' in element_name or 'method' in element_name:
+                    activity_confidence = 0.75
+                elif 'code' in element_name:
+                    activity_confidence = 0.7
+                else:
+                    activity_confidence = 0.6
+                
+                if activity_confidence > 0.5:
+                    activity_candidates.append({
+                        'name': element['name'],
+                        'source_file': os.path.basename(source_file),
+                        'confidence': activity_confidence,
+                        'reason': f"Activity indicator: {element_name} (confidence: {activity_confidence:.2f})"
+                    })
             
-            # Check for timestamp candidates
-            if any(keyword in element_name for keyword in timestamp_keywords) or 'date' in element_type:
-                timestamp_candidates.append({
-                    'name': element['name'],
-                    'source_file': os.path.basename(source_file),
-                    'confidence': 0.8,
-                    'reason': f"Contains time-related keywords: {element_name}"
-                })
+            # Enhanced timestamp detection
+            timestamp_confidence = 0.0
+            if any(keyword in element_name for keyword in timestamp_keywords) or 'date' in element_type or 'time' in element_type:
+                if 'timestamp' in element_name:
+                    timestamp_confidence = 0.95
+                elif element_name.endswith('date') or element_name.endswith('time'):
+                    timestamp_confidence = 0.9
+                elif 'date' in element_name or 'time' in element_name:
+                    timestamp_confidence = 0.85
+                elif 'created' in element_name or 'updated' in element_name:
+                    timestamp_confidence = 0.8
+                elif 'effective' in element_name or 'expiration' in element_name:
+                    timestamp_confidence = 0.75
+                else:
+                    timestamp_confidence = 0.6
+                
+                if timestamp_confidence > 0.5:
+                    timestamp_candidates.append({
+                        'name': element['name'],
+                        'source_file': os.path.basename(source_file),
+                        'confidence': timestamp_confidence,
+                        'reason': f"Timestamp indicator: {element_name} (confidence: {timestamp_confidence:.2f})"
+                    })
             
-            # Other attributes
+            # Categorize remaining elements as attributes
             if not any([
                 any(keyword in element_name for keyword in case_keywords),
                 any(keyword in element_name for keyword in activity_keywords),
@@ -944,14 +697,20 @@ class EventLogAnalyzer:
                 attribute_candidates.append({
                     'name': element['name'],
                     'source_file': os.path.basename(source_file),
-                    'type': element.get('type', 'unknown')
+                    'type': element.get('type', 'unknown'),
+                    'category': self._categorize_attribute(element_name)
                 })
         
+        # Sort by confidence and return top candidates
+        case_id_candidates.sort(key=lambda x: x['confidence'], reverse=True)
+        activity_candidates.sort(key=lambda x: x['confidence'], reverse=True)
+        timestamp_candidates.sort(key=lambda x: x['confidence'], reverse=True)
+        
         return {
-            'case_id_candidates': case_id_candidates[:10],  # Top 10
-            'activity_candidates': activity_candidates[:10],
-            'timestamp_candidates': timestamp_candidates[:10],
-            'attribute_candidates': attribute_candidates[:20],
+            'case_id_candidates': case_id_candidates[:25],  # Top 25
+            'activity_candidates': activity_candidates[:25],
+            'timestamp_candidates': timestamp_candidates[:25],
+            'attribute_candidates': attribute_candidates[:50],
             'summary': {
                 'total_case_candidates': len(case_id_candidates),
                 'total_activity_candidates': len(activity_candidates),
@@ -959,6 +718,29 @@ class EventLogAnalyzer:
                 'total_attributes': len(attribute_candidates)
             }
         }
+    
+    def _categorize_attribute(self, element_name: str) -> str:
+        """Categorize an attribute as case-level or event-level based on naming patterns."""
+        element_name = element_name.lower()
+        
+        # Case-level attributes (properties of the entire process instance)
+        case_patterns = [
+            'customer', 'order', 'total', 'priority', 'type', 'amount', 'value',
+            'mode', 'profile', 'group', 'plan', 'destination', 'source'
+        ]
+        
+        # Event-level attributes (properties of individual activities)
+        event_patterns = [
+            'user', 'location', 'service', 'equipment', 'route', 'provider',
+            'instruction', 'detail', 'point', 'reference'
+        ]
+        
+        if any(pattern in element_name for pattern in case_patterns):
+            return 'case_attribute'
+        elif any(pattern in element_name for pattern in event_patterns):
+            return 'event_attribute'
+        else:
+            return 'general_attribute'
     
     def _generate_suggested_sql(
         self,
@@ -1034,3 +816,45 @@ WHERE e.event_time IS NOT NULL
 ORDER BY e.case_id, e.event_time;
 """
         return sql
+    
+    def _analyze_activity_patterns(self, data: pd.DataFrame, activity_col: str) -> List[Dict[str, Any]]:
+        """Analyze patterns in activity data."""
+        if activity_col not in data.columns:
+            return []
+        
+        patterns = []
+        
+        # Get activity distribution
+        activity_counts = data[activity_col].value_counts()
+        
+        if len(activity_counts) > 0:
+            patterns.append({
+                'type': 'activity_distribution',
+                'total_activities': len(activity_counts),
+                'most_common': dict(activity_counts.head().items()),
+                'activity_balance': float(activity_counts.std() / activity_counts.mean()) if activity_counts.mean() > 0 else 0
+            })
+        
+        return patterns
+    
+    def _analyze_temporal_coverage(self, data: pd.DataFrame, timestamp_col: str) -> Dict[str, Any]:
+        """Analyze temporal coverage of timestamp data."""
+        if timestamp_col not in data.columns:
+            return {}
+        
+        try:
+            timestamps = pd.to_datetime(data[timestamp_col], errors='coerce').dropna()
+            if len(timestamps) == 0:
+                return {}
+            
+            return {
+                'date_range': {
+                    'start': timestamps.min().isoformat(),
+                    'end': timestamps.max().isoformat(),
+                    'span_days': (timestamps.max() - timestamps.min()).days
+                },
+                'coverage': len(timestamps) / len(data),
+                'has_temporal_order': timestamps.is_monotonic_increasing
+            }
+        except Exception:
+            return {}

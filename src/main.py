@@ -11,11 +11,11 @@ from typing import List, Optional
 import click
 import yaml
 
-from .core.data_ingestion import DataIngestionEngine
-from .core.schema_analyzer import SchemaAnalyzer
-from .core.ai_analyzer import AIAnalyzer
-from .core.event_log_analyzer import EventLogAnalyzer
-from .utils.helpers import setup_logging, load_environment
+from core.data_ingestion import DataIngestionEngine
+from core.schema_analyzer import SchemaAnalyzer
+from core.ai_analyzer import AIAnalyzer
+from core.event_log_analyzer import EventLogAnalyzer
+from utils.helpers import setup_logging, load_environment
 
 
 @click.group()
@@ -338,81 +338,48 @@ def demo() -> None:
 
 
 def display_assessment_summary(assessment: dict) -> None:
-    """Display a summary of the assessment results."""
+    """Simple MVP summary - just the essentials."""
     
-    click.echo("\n" + "=" * 60)
-    click.echo("📋 ASSESSMENT SUMMARY")
-    click.echo("=" * 60)
+    click.echo("\n" + "=" * 50)
+    click.echo("� PROCESS MINING ASSESSMENT")
+    click.echo("=" * 50)
     
-    # Case ID recommendations - check both locations
-    case_candidates = []
-    
-    # From direct case_id_candidates
-    if 'case_id_candidates' in assessment and assessment['case_id_candidates']:
-        case_candidates.extend(assessment['case_id_candidates'])
-    
-    # From schema analysis
-    if 'schema_analysis' in assessment:
-        schema_elements = assessment['schema_analysis'].get('process_mining_elements', {})
-        if 'case_id_candidates' in schema_elements and schema_elements['case_id_candidates']:
-            case_candidates.extend(schema_elements['case_id_candidates'])
-    
-    if case_candidates:
-        click.echo("\n🆔 Case ID Candidates:")
-        for candidate in case_candidates[:3]:  # Top 3
-            confidence = candidate.get('confidence', 0)
-            col = candidate.get('column') or candidate.get('name') or 'unknown'
-            source = candidate.get('source_file') or candidate.get('table') or 'unknown'
-            click.echo(f"  • {col} from {source} (confidence: {confidence:.1%})")
+    # Show top candidates only
+    if assessment.get('case_id_candidates'):
+        top_case = assessment['case_id_candidates'][0]
+        col = top_case.get('column') or top_case.get('name')
+        click.echo(f"✅ Case ID: {col}")
     else:
-        click.echo("\n🆔 Case ID Candidates: None found")
+        click.echo("❌ Case ID: Not found")
     
-    # Activity recommendations
-    if 'activity_analysis' in assessment:
-        click.echo("\n⚡ Activity Analysis:")
-        activities = assessment['activity_analysis']
-        
-        # Check activity_candidates (the actual candidates list)
-        activity_count = len(activities.get('activity_candidates', []))
-        click.echo(f"  • Activity candidates found: {activity_count}")
-        
-        if activity_count > 0:
-            # Show top activity candidate
-            top_activity = activities['activity_candidates'][0]
-            col = top_activity.get('column') or top_activity.get('name') or 'unknown'
-            source = top_activity.get('source_file') or top_activity.get('table') or 'unknown'
-            confidence = top_activity.get('confidence', 0)
-            click.echo(f"  • Top candidate: {col} from {source} (confidence: {confidence:.1%})")
-        
-        agg_count = len(activities.get('activities_to_aggregate', []))
-        if agg_count > 0:
-            click.echo(f"  • Activities to consider aggregating: {agg_count}")
+    if assessment.get('activity_candidates'):
+        top_activity = assessment['activity_candidates'][0]
+        col = top_activity.get('column') or top_activity.get('name')
+        click.echo(f"✅ Activity: {col}")
     else:
-        click.echo("\n⚡ Activity Analysis: No analysis available")
+        click.echo("❌ Activity: Not found")
     
-    # Data quality summary - fix the score display
-    if 'data_quality' in assessment:
-        quality = assessment['data_quality']
-        overall_score = quality.get('overall_score', 0)
-        # The score is already a percentage (0-100), so don't multiply by 100
-        click.echo(f"\n📊 Data Quality Score: {overall_score:.1f}%")
-        
-        # Show key quality metrics
-        completeness = quality.get('completeness_score', 0)
-        if completeness > 0:
-            click.echo(f"  • Data Completeness: {completeness:.1f}%")
+    if assessment.get('timestamp_candidates'):
+        top_timestamp = assessment['timestamp_candidates'][0]
+        col = top_timestamp.get('column') or top_timestamp.get('name')
+        click.echo(f"✅ Timestamp: {col}")
     else:
-        click.echo("\n📊 Data Quality Score: Not available")
+        click.echo("❌ Timestamp: Not found")
     
-    # Key recommendations
-    if 'recommendations' in assessment and assessment['recommendations']:
-        click.echo("\n💡 Key Recommendations:")
-        for i, rec in enumerate(assessment['recommendations'][:3], 1):  # Show top 3
-            click.echo(f"  {i}. {rec}")
+    # Simple readiness
+    readiness = assessment.get('readiness', {})
+    if readiness.get('ready'):
+        click.echo("\n� Status: Ready for event log creation")
     else:
-        click.echo("\n💡 Key Recommendations: None available")
+        missing = readiness.get('missing_elements', [])
+        click.echo(f"\n⚠️  Status: Missing {', '.join(missing)}")
     
-    click.echo("\n" + "=" * 60)
+    # Critical issues only
+    if assessment.get('data_issues'):
+        click.echo(f"\n� Data Issues: {len(assessment['data_issues'])} found")
+    
+    click.echo("\n� SQL query generated in output file.")
+    click.echo("=" * 50)
 
 
 def main() -> None:

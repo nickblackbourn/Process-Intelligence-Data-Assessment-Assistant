@@ -1,0 +1,191 @@
+metadata:
+  generated_at: '2025-08-08T14:43:46.382332'
+  files_analyzed: []
+case_id_candidates:
+- table: Order.xsd
+  column: TransOrderGid
+  confidence: 0.95
+  reasoning: 'Case ID indicator: transordergid (confidence: 0.95)'
+  source: schema_analysis
+- table: Order.xsd
+  column: ProcessingCodeGid
+  confidence: 0.95
+  reasoning: 'Case ID indicator: processingcodegid (confidence: 0.95)'
+  source: schema_analysis
+- table: Order.xsd
+  column: ReleaseMethodGid
+  confidence: 0.95
+  reasoning: 'Case ID indicator: releasemethodgid (confidence: 0.95)'
+  source: schema_analysis
+- table: Order.xsd
+  column: PlanningGroupGid
+  confidence: 0.95
+  reasoning: 'Case ID indicator: planninggroupgid (confidence: 0.95)'
+  source: schema_analysis
+- table: Order.xsd
+  column: FixedItineraryGid
+  confidence: 0.95
+  reasoning: 'Case ID indicator: fixeditinerarygid (confidence: 0.95)'
+  source: schema_analysis
+activity_candidates:
+- table: Order.xsd
+  column: TransactionCode
+  confidence: 0.9
+  reasoning: 'Activity indicator: transactioncode (confidence: 0.90)'
+  source: schema_analysis
+- table: Order.xsd
+  column: TransOrderStatus
+  confidence: 0.8
+  reasoning: 'Activity indicator: transorderstatus (confidence: 0.80)'
+  source: schema_analysis
+- table: Order.xsd
+  column: ReleaseStatus
+  confidence: 0.8
+  reasoning: 'Activity indicator: releasestatus (confidence: 0.80)'
+  source: schema_analysis
+- table: Order.xsd
+  column: Status
+  confidence: 0.8
+  reasoning: 'Activity indicator: status (confidence: 0.80)'
+  source: schema_analysis
+- table: Order.xsd
+  column: StatusLevel
+  confidence: 0.8
+  reasoning: 'Activity indicator: statuslevel (confidence: 0.80)'
+  source: schema_analysis
+timestamp_candidates:
+- table: Order.xsd
+  column: EffectiveDate
+  confidence: 0.9
+  reasoning: 'Timestamp indicator: effectivedate (confidence: 0.90)'
+  source: schema_analysis
+- table: Order.xsd
+  column: ExpirationDate
+  confidence: 0.9
+  reasoning: 'Timestamp indicator: expirationdate (confidence: 0.90)'
+  source: schema_analysis
+- table: Order.xsd
+  column: ReleaseDate
+  confidence: 0.9
+  reasoning: 'Timestamp indicator: releasedate (confidence: 0.90)'
+  source: schema_analysis
+- table: Order.xsd
+  column: ExpectedTransitTime
+  confidence: 0.9
+  reasoning: 'Timestamp indicator: expectedtransittime (confidence: 0.90)'
+  source: schema_analysis
+- table: Order.xsd
+  column: CalculateServiceTime
+  confidence: 0.9
+  reasoning: 'Timestamp indicator: calculateservicetime (confidence: 0.90)'
+  source: schema_analysis
+case_attributes:
+- table: Order.xsd
+  column: OBShipUnit
+  data_type: OBShipUnitType
+  source: schema_analysis
+  category: general_attribute
+- table: Order.xsd
+  column: OBLine
+  data_type: OBLineType
+  source: schema_analysis
+  category: general_attribute
+- table: Order.xsd
+  column: Quote
+  data_type: QuoteType
+  source: schema_analysis
+  category: general_attribute
+- table: Order.xsd
+  column: PackagedItem
+  data_type: PackagedItemType
+  source: schema_analysis
+  category: general_attribute
+- table: Order.xsd
+  column: IntSavedQuery
+  data_type: IntSavedQueryType
+  source: schema_analysis
+  category: general_attribute
+- table: Order.xsd
+  column: ReplaceChildren
+  data_type: ReplaceChildrenType
+  source: schema_analysis
+  category: general_attribute
+- table: Order.xsd
+  column: InvolvedParty
+  data_type: InvolvedPartyType
+  source: schema_analysis
+  category: general_attribute
+- table: Order.xsd
+  column: CommercialTerms
+  data_type: CommercialTermsType
+  source: schema_analysis
+  category: general_attribute
+- table: Order.xsd
+  column: ShipWithGroup
+  data_type: xsd:string
+  source: schema_analysis
+  category: case_attribute
+- table: Order.xsd
+  column: Remark
+  data_type: RemarkType
+  source: schema_analysis
+  category: general_attribute
+event_attributes:
+- table: Order.xsd
+  column: ShipUnitDetail
+  data_type: ShipUnitDetailType
+  source: schema_analysis
+  category: event_attribute
+- table: Order.xsd
+  column: Location
+  data_type: LocationType
+  source: schema_analysis
+  category: event_attribute
+- table: Order.xsd
+  column: StuffLocation
+  data_type: GLogXMLLocRefType
+  source: schema_analysis
+  category: event_attribute
+- table: Order.xsd
+  column: DestuffLocation
+  data_type: GLogXMLLocRefType
+  source: schema_analysis
+  category: event_attribute
+- table: Order.xsd
+  column: ShipFromLoadPoint
+  data_type: xsd:string
+  source: schema_analysis
+  category: event_attribute
+- table: Order.xsd
+  column: ShipToUnloadPoint
+  data_type: xsd:string
+  source: schema_analysis
+  category: event_attribute
+- table: Order.xsd
+  column: REquipment
+  data_type: REquipmentType
+  source: schema_analysis
+  category: event_attribute
+- table: Order.xsd
+  column: OnRouteTempExec
+  data_type: xsd:string
+  source: schema_analysis
+  category: event_attribute
+suggested_sql: "-- Suggested SQL (MVP) to assemble a case-centric event log\n-- Assumptions:\n\
+  --  - Tables derived from provided files (update schema/table names as needed)\n\
+  --  - Join keys and filters may require refinement\n\nWITH activities AS (\n   \
+  \ SELECT\n        a.TransOrderGid AS case_id,\n        a.TransactionCode AS activity,\n\
+  \        a.EffectiveDate  AS event_time,\n        a.*\n    FROM Order a\n),\ncases\
+  \ AS (\n    SELECT\n        c.TransOrderGid AS case_id,\n        c.*\n    FROM Order\
+  \ c\n)\nSELECT\n    e.case_id,\n    e.activity,\n    e.event_time AS timestamp,\n\
+  \    -- Add selected attributes below (case- and event-level)\n    -- e.attribute1,\
+  \ e.attribute2, c.case_attribute1\nFROM activities e\nJOIN cases c\n  ON e.TransOrderGid\
+  \ = c.TransOrderGid\nWHERE e.event_time IS NOT NULL\nORDER BY e.case_id, e.event_time;\n"
+readiness:
+  ready: false
+  missing_elements:
+  - Case ID
+  - Activity
+  - Timestamp
+data_issues: []
+ai_insights: []
