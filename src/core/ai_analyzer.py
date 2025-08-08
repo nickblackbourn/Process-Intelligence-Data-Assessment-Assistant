@@ -127,57 +127,59 @@ class AIAnalyzer:
         return "\n".join(context_parts)
     
     def _call_azure_openai(self, context: str) -> str:
-        """Call Azure OpenAI API for analysis."""
+        """Call Azure OpenAI API for event-centric process mining analysis."""
         
-        system_prompt = """You are a world-class process mining consultant with 15+ years of experience helping enterprises analyze their business processes. Your expertise includes:
+        system_prompt = """You are a world-class process mining consultant. Process mining requires EVENTS, which are activities that occurred at specific timestamps.
 
-- Business process identification (Order-to-Cash, Procure-to-Pay, Incident Management, HR Processes, Finance, etc.)
-- Event log structure requirements (Case ID, Activity, Timestamp, Attributes)
-- Data quality assessment for process mining readiness
-- SQL generation for event log creation
-- Business value articulation for executives
+CRITICAL: An activity without a timestamp is NOT an event and cannot be used for process mining.
 
-When analyzing data sources, provide insights that help business consultants understand:
-1. What business process this data represents (with confidence level)
-2. How ready this data is for process mining (scored 0-10 with clear reasoning)
-3. Specific actionable steps to improve the data
-4. Working SQL code that actually uses the detected column names
-5. Business impact and value proposition
+When analyzing data sources, identify complete EVENT structures:
+1. Case ID (process instance identifier)
+2. Event combinations (activity + timestamp pairs)
+3. Additional attributes
 
-Always respond in JSON format with the following structure:
+Always respond in JSON format:
 {
   "business_process_analysis": {
     "process_type": "e.g., Incident Management System",
     "confidence": 0.85,
-    "reasoning": "Detailed explanation based on column names, file names, and data patterns"
+    "reasoning": "Detailed explanation based on event patterns"
   },
+  "event_candidates": [
+    {
+      "case_id_column": "order_id",
+      "activity_column": "order_status", 
+      "timestamp_column": "status_change_date",
+      "confidence": 0.9,
+      "event_description": "Order status changes with timestamps",
+      "business_meaning": "Order lifecycle progression events",
+      "sample_events": [
+        {"case_id": "ORD-001", "activity": "Created", "timestamp": "2025-01-01 09:00:00"},
+        {"case_id": "ORD-001", "activity": "Confirmed", "timestamp": "2025-01-01 09:15:00"}
+      ]
+    }
+  ],
   "readiness_assessment": {
     "overall_score": 6,
-    "case_id_quality": 8,
-    "activity_quality": 7,
-    "timestamp_quality": 2,
-    "data_completeness": 5,
-    "reasoning": "Clear explanation of each score with specific evidence"
+    "event_completeness": 8,
+    "temporal_coverage": 7,
+    "case_id_quality": 9,
+    "reasoning": "Score based on complete event availability"
   },
   "actionable_recommendations": [
-    "Immediate action 1: Request timestamp data from system administrator",
-    "Data quality fix 2: Address high missing data percentages",
-    "Quick win 3: Use specific column for activity names"
+    "Specific actions to improve event log creation"
   ],
-  "working_sql": "-- Actual SQL using real column names\\nSELECT [actual_column_name] as case_id, [status_column] as activity FROM [table_name]...",
-  "business_value": "Expected business outcomes from process mining this data",
-  "next_steps": ["Concrete step 1", "Concrete step 2", "Concrete step 3"],
-  "data_quality_concerns": ["Specific issue 1", "Specific issue 2"],
-  "process_mining_potential": "High/Medium/Low with reasoning"
+  "event_log_sql": "-- SQL that creates proper events with case_id, activity, timestamp\\nSELECT...",
+  "business_value": "Expected outcomes from process mining these events"
 }
 
-Be specific, actionable, and focus on business value rather than technical details. Use the actual column names and table references found in the data."""
+Focus on identifying activity-timestamp pairs that create meaningful business events."""
 
-        user_prompt = f"""Analyze the following data sources for process mining event log creation:
+        user_prompt = f"""Analyze for complete EVENTS (activity+timestamp pairs) for process mining:
 
 {context}
 
-The user is a process mining consultant who needs to assess this data for their client. Provide practical, business-focused recommendations that they can immediately act upon. Focus on identifying the business process type and providing actionable next steps."""
+CRITICAL: Only identify activities that have corresponding timestamps. Activities without timestamps cannot be used for process mining."""
 
         try:
             response = self.client.chat.completions.create(
@@ -238,18 +240,18 @@ The user is a process mining consultant who needs to assess this data for their 
         schema_info: Optional[Dict[str, Any]],
         business_context: str
     ) -> Dict[str, Any]:
-        """Generate enhanced fallback analysis with business intelligence when AI unavailable."""
+        """Generate event-centric fallback analysis when AI unavailable."""
         
-        logger.info("Generating enhanced fallback analysis with business intelligence")
+        logger.info("Generating event-centric fallback analysis with business intelligence")
         
-        # Analyze data patterns to infer business process type
+        # Find complete event structures
+        event_candidates = self._identify_event_candidates(datasets)
+        
+        # Assess readiness based on complete events
+        readiness_assessment = self._assess_event_readiness(event_candidates, datasets)
+        
+        # Generate process inference
         process_inference = self._infer_business_process(datasets)
-        
-        # Generate business-focused readiness assessment
-        readiness_assessment = self._assess_business_readiness(datasets)
-        
-        # Create actionable recommendations
-        recommendations = self._generate_business_recommendations(datasets, process_inference)
         
         fallback_insights = {
             'ai_analysis': False,
@@ -259,23 +261,308 @@ The user is a process mining consultant who needs to assess this data for their 
                 'confidence': process_inference['confidence'],
                 'reasoning': process_inference['reasoning']
             },
+            'event_candidates': event_candidates,
             'readiness_assessment': {
                 'overall_score': readiness_assessment['overall_score'],
-                'case_id_quality': readiness_assessment['case_id_score'],
-                'activity_quality': readiness_assessment['activity_score'], 
-                'timestamp_quality': readiness_assessment['timestamp_score'],
-                'data_completeness': readiness_assessment['data_completeness'],
-                'reasoning': readiness_assessment['breakdown']
+                'event_completeness': readiness_assessment['event_completeness'],
+                'temporal_coverage': readiness_assessment['temporal_coverage'],
+                'case_id_quality': readiness_assessment['case_id_quality'],
+                'reasoning': readiness_assessment['reasoning']
             },
-            'actionable_recommendations': recommendations,
-            'working_sql': self._generate_working_sql_fallback(datasets),
-            'business_value': f"Process mining this {process_inference['process_type'].lower()} data could provide insights into process efficiency, bottlenecks, and improvement opportunities.",
-            'next_steps': self._generate_next_steps(datasets, readiness_assessment),
-            'data_quality_concerns': self._identify_data_quality_issues(datasets),
-            'process_mining_potential': self._assess_mining_potential(readiness_assessment)
+            'actionable_recommendations': self._generate_event_recommendations(event_candidates, readiness_assessment),
+            'event_log_sql': self._generate_event_sql(event_candidates),
+            'business_value': f"Process mining these {process_inference['process_type'].lower()} events will provide insights into process efficiency and bottlenecks.",
+            'data_quality_concerns': self._identify_event_quality_issues(event_candidates, datasets),
+            'process_mining_potential': self._assess_mining_potential_events(readiness_assessment)
         }
         
         return fallback_insights
+
+    def _identify_event_candidates(self, datasets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Identify complete event structures (activity + timestamp pairs)."""
+        event_candidates = []
+        
+        for dataset in datasets:
+            if dataset.get('data') is None:
+                continue
+                
+            columns = list(dataset['data'].columns)
+            table_name = dataset.get('file_path', 'unknown_table')
+            
+            # Find potential case IDs
+            case_id_candidates = self._find_case_id_columns(columns)
+            
+            # Find activity-timestamp pairs
+            activity_columns = self._find_activity_columns(columns)
+            timestamp_columns = self._find_timestamp_columns(columns)
+            
+            # Create event candidates by pairing activities with timestamps
+            for activity_col in activity_columns:
+                for timestamp_col in timestamp_columns:
+                    for case_id_col in case_id_candidates:
+                        
+                        # Calculate confidence based on column quality and data coverage
+                        confidence = self._calculate_event_confidence(
+                            dataset['data'], case_id_col, activity_col, timestamp_col
+                        )
+                        
+                        if confidence > 0.3:  # Only include viable event candidates
+                            event_candidate = {
+                                'table': table_name,
+                                'case_id_column': case_id_col,
+                                'activity_column': activity_col,
+                                'timestamp_column': timestamp_col,
+                                'confidence': confidence,
+                                'event_description': f"{activity_col} changes tracked with {timestamp_col}",
+                                'business_meaning': self._infer_event_meaning(activity_col, timestamp_col),
+                                'sample_events': self._extract_sample_events(
+                                    dataset['data'], case_id_col, activity_col, timestamp_col
+                                )
+                            }
+                            event_candidates.append(event_candidate)
+        
+        # Sort by confidence and return top candidates
+        return sorted(event_candidates, key=lambda x: x['confidence'], reverse=True)[:10]
+
+    def _find_case_id_columns(self, columns: List[str]) -> List[str]:
+        """Find potential case ID columns."""
+        case_id_indicators = ['id', 'number', 'key', 'reference', 'case', 'ticket', 'order', 'event']
+        candidates = []
+        
+        for col in columns:
+            col_lower = str(col).lower()
+            for indicator in case_id_indicators:
+                if indicator in col_lower and 'name' not in col_lower and 'description' not in col_lower:
+                    candidates.append(col)
+                    break
+        
+        return candidates
+
+    def _find_activity_columns(self, columns: List[str]) -> List[str]:
+        """Find potential activity columns."""
+        activity_indicators = ['status', 'state', 'activity', 'event', 'action', 'step', 'phase', 'stage']
+        candidates = []
+        
+        for col in columns:
+            col_lower = str(col).lower()
+            for indicator in activity_indicators:
+                if indicator in col_lower:
+                    candidates.append(col)
+                    break
+        
+        return candidates
+
+    def _find_timestamp_columns(self, columns: List[str]) -> List[str]:
+        """Find potential timestamp columns."""
+        timestamp_indicators = ['date', 'time', 'timestamp', 'created', 'updated', 'modified', 'changed']
+        candidates = []
+        
+        for col in columns:
+            col_lower = str(col).lower()
+            for indicator in timestamp_indicators:
+                if indicator in col_lower:
+                    candidates.append(col)
+                    break
+        
+        return candidates
+
+    def _calculate_event_confidence(self, data, case_id_col: str, activity_col: str, timestamp_col: str) -> float:
+        """Calculate confidence score for an event candidate."""
+        try:
+            # Check data availability
+            case_coverage = data[case_id_col].notna().sum() / len(data)
+            activity_coverage = data[activity_col].notna().sum() / len(data)
+            timestamp_coverage = data[timestamp_col].notna().sum() / len(data)
+            
+            # Check uniqueness and variety
+            case_uniqueness = data[case_id_col].nunique() / len(data) if len(data) > 0 else 0
+            activity_variety = data[activity_col].nunique() / len(data) if len(data) > 0 else 0
+            
+            # Calculate weighted confidence
+            confidence = (
+                case_coverage * 0.3 +           # Case ID coverage
+                activity_coverage * 0.3 +       # Activity coverage  
+                timestamp_coverage * 0.3 +      # Timestamp coverage
+                min(case_uniqueness * 2, 1) * 0.1  # Case ID uniqueness (capped at 1)
+            )
+            
+            return min(confidence, 1.0)
+            
+        except Exception:
+            return 0.1
+
+    def _extract_sample_events(self, data, case_id_col: str, activity_col: str, timestamp_col: str) -> List[Dict[str, str]]:
+        """Extract sample events to demonstrate the event structure."""
+        try:
+            # Get complete records only
+            complete_data = data.dropna(subset=[case_id_col, activity_col, timestamp_col])
+            
+            if complete_data.empty:
+                return []
+            
+            # Take first few complete records
+            samples = []
+            for _, row in complete_data.head(3).iterrows():
+                samples.append({
+                    'case_id': str(row[case_id_col]),
+                    'activity': str(row[activity_col]),
+                    'timestamp': str(row[timestamp_col])
+                })
+            
+            return samples
+            
+        except Exception:
+            return []
+
+    def _infer_event_meaning(self, activity_col: str, timestamp_col: str) -> str:
+        """Infer business meaning of the event structure."""
+        activity_lower = activity_col.lower()
+        timestamp_lower = timestamp_col.lower()
+        
+        if 'status' in activity_lower:
+            return f"Process status transitions tracked by {timestamp_col}"
+        elif 'event' in activity_lower:
+            return f"Business events logged with {timestamp_col}"
+        elif 'activity' in activity_lower:
+            return f"Process activities executed at {timestamp_col}"
+        else:
+            return f"Process steps in {activity_col} with timing from {timestamp_col}"
+
+    def _assess_event_readiness(self, event_candidates: List[Dict[str, Any]], datasets: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Assess readiness based on complete event availability."""
+        
+        if not event_candidates:
+            return {
+                'overall_score': 0,
+                'event_completeness': 0,
+                'temporal_coverage': 0,
+                'case_id_quality': 0,
+                'reasoning': 'No complete events (activity+timestamp pairs) found'
+            }
+        
+        # Calculate scores based on best event candidate
+        best_event = event_candidates[0]
+        
+        event_completeness = best_event['confidence'] * 10
+        temporal_coverage = len([e for e in event_candidates if e['confidence'] > 0.5]) * 2
+        case_id_quality = min(len([e for e in event_candidates if 'id' in e['case_id_column'].lower()]) * 3, 10)
+        
+        overall_score = (event_completeness + temporal_coverage + case_id_quality) / 3
+        
+        return {
+            'overall_score': round(overall_score, 1),
+            'event_completeness': round(event_completeness, 1),
+            'temporal_coverage': round(min(temporal_coverage, 10), 1),
+            'case_id_quality': round(case_id_quality, 1),
+            'reasoning': f'Based on {len(event_candidates)} complete event structures found'
+        }
+
+    def _generate_event_recommendations(self, event_candidates: List[Dict[str, Any]], readiness: Dict[str, Any]) -> List[str]:
+        """Generate actionable recommendations based on event analysis."""
+        recommendations = []
+        
+        if not event_candidates:
+            recommendations.extend([
+                "CRITICAL: No complete events found - activities must have associated timestamps",
+                "Identify data sources that contain both process activities and their execution times",
+                "Request event logging enhancement from system administrators"
+            ])
+        else:
+            best_event = event_candidates[0]
+            
+            # Event-specific recommendations
+            if best_event['confidence'] < 0.7:
+                recommendations.append(f"Improve data quality for {best_event['activity_column']} and {best_event['timestamp_column']} pairing")
+            
+            recommendations.append(f"Validate that {best_event['activity_column']} represents meaningful business activities")
+            recommendations.append(f"Confirm {best_event['timestamp_column']} captures actual event timing")
+            
+            # Add sample events validation
+            if best_event.get('sample_events'):
+                recommendations.append("Review sample events with business stakeholders for accuracy")
+        
+        recommendations.extend([
+            "Ensure complete case lifecycle coverage from start to end",
+            "Consider data privacy requirements for process mining analysis"
+        ])
+        
+        return recommendations[:8]
+
+    def _generate_event_sql(self, event_candidates: List[Dict[str, Any]]) -> str:
+        """Generate SQL for the best event candidate."""
+        if not event_candidates:
+            return "-- No complete events found - cannot generate event log SQL\\n-- CRITICAL: Activities must have associated timestamps for process mining"
+        
+        best_event = event_candidates[0]
+        table_name = best_event['table'].split('/')[-1].split('.')[0].replace(' ', '_')
+        
+        sql = f"""-- Event Log SQL - Process Mining Ready
+-- Generated from: {best_event['table']}
+-- Event Structure: {best_event['event_description']}
+
+SELECT 
+    [{best_event['case_id_column']}] as case_id,
+    [{best_event['activity_column']}] as activity,
+    [{best_event['timestamp_column']}] as timestamp,
+    -- Add additional attributes as needed
+    ROW_NUMBER() OVER (
+        PARTITION BY [{best_event['case_id_column']}] 
+        ORDER BY [{best_event['timestamp_column']}]
+    ) as event_sequence
+FROM [{table_name}]
+WHERE [{best_event['case_id_column']}] IS NOT NULL
+  AND [{best_event['activity_column']}] IS NOT NULL  
+  AND [{best_event['timestamp_column']}] IS NOT NULL
+ORDER BY case_id, timestamp;
+
+-- Sample Events Found:
+{chr(10).join([f"-- {event['case_id']} | {event['activity']} | {event['timestamp']}" for event in best_event.get('sample_events', [])])}
+
+-- Confidence: {best_event['confidence']:.1%}
+-- Business Meaning: {best_event['business_meaning']}"""
+        
+        return sql
+
+    def _identify_event_quality_issues(self, event_candidates: List[Dict[str, Any]], datasets: List[Dict[str, Any]]) -> List[str]:
+        """Identify specific data quality concerns for events."""
+        issues = []
+        
+        if not event_candidates:
+            issues.append("CRITICAL: No complete events (activity+timestamp pairs) found")
+            issues.append("Cannot perform process mining without temporal activity data")
+        else:
+            for event in event_candidates[:3]:  # Check top 3 candidates
+                if event['confidence'] < 0.5:
+                    issues.append(f"Low confidence event structure: {event['event_description']} ({event['confidence']:.1%})")
+                
+                if not event.get('sample_events'):
+                    issues.append(f"No sample events found for {event['activity_column']} + {event['timestamp_column']}")
+        
+        # Add general data quality issues
+        for dataset in datasets:
+            if dataset.get('data') is None:
+                continue
+                
+            file_name = dataset.get('file_path', 'dataset').split('/')[-1] if '/' in dataset.get('file_path', '') else 'dataset'
+            
+            # Check for high missing data
+            if hasattr(dataset['data'], 'isnull'):
+                missing_pct = (dataset['data'].isnull().sum().sum() / (dataset['data'].shape[0] * dataset['data'].shape[1])) * 100
+                if missing_pct > 30:
+                    issues.append(f"High missing data in {file_name}: {missing_pct:.1f}%")
+        
+        return issues
+
+    def _assess_mining_potential_events(self, readiness: Dict[str, Any]) -> str:
+        """Assess overall process mining potential based on events."""
+        score = readiness['overall_score']
+        
+        if score >= 7:
+            return "High - Complete event structures found, ready for process mining"
+        elif score >= 4:
+            return "Medium - Event structures identified but need quality improvements"
+        else:
+            return "Low - No viable event structures found, fundamental data collection needed"
 
     def _infer_business_process(self, datasets: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Infer business process type from data patterns."""

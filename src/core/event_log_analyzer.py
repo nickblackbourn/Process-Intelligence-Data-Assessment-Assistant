@@ -51,7 +51,7 @@ class EventLogAnalyzer:
         ai_insights: Dict[str, Any],
         business_context: str
     ) -> Dict[str, Any]:
-        """Generate business-focused process mining assessment with executive summary.
+        """Generate event-centric process mining assessment with executive summary.
         
         Args:
             datasets: List of dataset information
@@ -60,33 +60,33 @@ class EventLogAnalyzer:
             business_context: Business context description
             
         Returns:
-            Business-focused assessment with executive summary and technical details
+            Event-centric assessment with executive summary and technical details
         """
         logger.info("Generating business-focused process mining assessment")
         
-        # Extract business insights from AI or generate fallback
-        if ai_insights and 'business_process_analysis' in ai_insights:
-            business_analysis = ai_insights['business_process_analysis']
+        # Extract event candidates from AI insights or generate fallback
+        if ai_insights and 'event_candidates' in ai_insights:
+            event_candidates = ai_insights['event_candidates']
+            business_analysis = ai_insights.get('business_process_analysis', {})
             readiness_scores = ai_insights.get('readiness_assessment', {})
             recommendations = ai_insights.get('actionable_recommendations', [])
-            sql_code = ai_insights.get('working_sql', self._generate_working_sql(datasets))
+            sql_code = ai_insights.get('event_log_sql', self._generate_event_sql_fallback(datasets))
             business_value = ai_insights.get('business_value', 'Process mining analysis will provide insights into process efficiency and improvement opportunities')
-            next_steps = ai_insights.get('next_steps', [])
             data_concerns = ai_insights.get('data_quality_concerns', [])
             mining_potential = ai_insights.get('process_mining_potential', 'Assessment pending')
         else:
-            # Enhanced fallback with business intelligence
+            # Enhanced fallback with event-centric business intelligence
             fallback = self._generate_enhanced_business_fallback(datasets)
+            event_candidates = fallback.get('event_candidates', [])
             business_analysis = fallback['business_process_analysis']
             readiness_scores = fallback['readiness_score']
             recommendations = fallback['actionable_recommendations']
             sql_code = fallback['working_sql']
             business_value = fallback['business_value']
-            next_steps = fallback['next_steps']
             data_concerns = fallback['data_quality_concerns']
             mining_potential = fallback['process_mining_potential']
         
-        # Core technical analysis (existing functionality)
+        # Legacy technical analysis for backward compatibility
         case_id_candidates = self._compile_case_id_candidates(datasets, schema_info, ai_insights)
         activity_analysis = self._compile_activity_analysis(datasets, schema_info, ai_insights)
         timestamp_analysis = self._compile_timestamp_analysis(datasets, schema_info, ai_insights)
@@ -99,14 +99,14 @@ class EventLogAnalyzer:
         readiness = self._assess_readiness(datasets, ai_insights)
         data_quality = self._assess_data_quality(datasets)
         
-        # Build enhanced assessment with executive summary
+        # Build event-centric assessment with executive summary
         assessment = {
             'executive_summary': {
                 'process_type': business_analysis.get('process_type', 'Unknown Business Process'),
                 'confidence': f"{business_analysis.get('confidence', 0.1):.0%}",
                 'readiness_score': f"{readiness_scores.get('overall_score', readiness.get('overall_score', 0))}/10",
                 'mining_potential': mining_potential,
-                'key_finding': self._get_key_finding(datasets, readiness_scores, case_id_candidates, timestamp_analysis),
+                'key_finding': self._get_event_key_finding(event_candidates, readiness_scores),
                 'primary_recommendation': recommendations[0] if recommendations else "Manual data review required",
                 'timeline_estimate': self._estimate_timeline(readiness_scores),
                 'business_value': business_value
@@ -118,36 +118,29 @@ class EventLogAnalyzer:
                     'confidence_level': business_analysis.get('confidence', 0.1),
                     'reasoning': business_analysis.get('reasoning', 'Limited data for process identification')
                 },
-                'mining_readiness': {
+                'event_readiness': {
                     'overall_score': readiness_scores.get('overall_score', readiness.get('overall_score', 0)),
+                    'event_completeness': readiness_scores.get('event_completeness', 0),
+                    'temporal_coverage': readiness_scores.get('temporal_coverage', 0),
                     'case_id_quality': readiness_scores.get('case_id_quality', 0),
-                    'activity_quality': readiness_scores.get('activity_quality', 0),
-                    'timestamp_quality': readiness_scores.get('timestamp_quality', 0),
-                    'data_completeness': readiness_scores.get('data_completeness', self._calculate_data_completeness(datasets)),
-                    'breakdown_explanation': readiness_scores.get('reasoning', 'Assessment based on rule-based analysis')
+                    'breakdown_explanation': readiness_scores.get('reasoning', 'Assessment based on event structure analysis')
                 },
                 'immediate_actions': recommendations[:3] if recommendations else [
-                    "Review data structure with business stakeholders",
-                    "Identify clear case ID and activity definitions", 
-                    "Obtain timestamp data for temporal analysis"
+                    "Identify complete event structures (activity + timestamp pairs)",
+                    "Validate event business meaning with stakeholders", 
+                    "Ensure temporal data quality for process flow analysis"
                 ],
                 'data_issues_summary': data_concerns if data_concerns else data_quality.get('issues', []),
-                'next_steps': next_steps[:5] if next_steps else [
-                    "Validate findings with domain experts",
-                    "Plan proof-of-concept analysis",
-                    "Define success metrics"
-                ]
+                'next_steps': self._generate_event_next_steps(event_candidates, readiness_scores)
             },
             
             'technical_details': {
                 'metadata': {
                     'generated_at': datetime.now().isoformat(),
                     'files_analyzed': [d.get('file_path') for d in datasets],
-                    'analysis_method': 'AI-enhanced' if ai_insights and 'business_process_analysis' in ai_insights else 'rule-based fallback'
+                    'analysis_method': 'event-centric'
                 },
-                'case_id_candidates': case_id_candidates[:5],  # Top 5 potential UIDs
-                'activity_candidates': activity_analysis.get('activity_candidates', [])[:5],
-                'timestamp_candidates': timestamp_analysis.get('timestamp_candidates', [])[:5],
+                'event_candidates': event_candidates[:5],  # Top 5 complete event structures
                 'case_attributes': case_attributes[:10],  # Top 10 case attributes
                 'event_attributes': event_attributes[:10],  # Top 10 event attributes
                 'suggested_sql': sql_code,
@@ -163,6 +156,53 @@ class EventLogAnalyzer:
         
         # Convert numpy types for YAML serialization
         return self._convert_numpy_types(assessment)
+
+    def _get_event_key_finding(self, event_candidates: List[Dict[str, Any]], readiness_scores: Dict[str, Any]) -> str:
+        """Generate key finding based on event analysis."""
+        if not event_candidates:
+            return "Critical Issue: No complete events (activity+timestamp pairs) found - process mining requires temporal information"
+        
+        best_event = event_candidates[0]
+        confidence = best_event.get('confidence', 0)
+        
+        if confidence > 0.8:
+            return f"Strong event structure found: {best_event.get('event_description', 'events detected')}"
+        elif confidence > 0.5:
+            return f"Viable event structure identified with {confidence:.0%} confidence - some improvements needed"
+        else:
+            return "Weak event structure detected - significant data improvements required for process mining"
+
+    def _generate_event_next_steps(self, event_candidates: List[Dict[str, Any]], readiness_scores: Dict[str, Any]) -> List[str]:
+        """Generate next steps based on event analysis."""
+        steps = []
+        
+        if not event_candidates:
+            steps.extend([
+                "Identify data sources with both activities and timestamps",
+                "Request event logging enhancement from system administrators",
+                "Consider process instrumentation to capture temporal data"
+            ])
+        else:
+            best_event = event_candidates[0]
+            steps.append(f"Validate {best_event['activity_column']} represents meaningful business activities")
+            steps.append(f"Confirm {best_event['timestamp_column']} captures accurate event timing")
+            steps.append("Review sample events with business stakeholders for accuracy")
+        
+        steps.extend([
+            "Plan proof-of-concept process mining analysis",
+            "Define success metrics and business value targets"
+        ])
+        
+        return steps[:5]
+
+    def _generate_event_sql_fallback(self, datasets: List[Dict[str, Any]]) -> str:
+        """Generate SQL for event log when no AI insights available."""
+        if not datasets:
+            return "-- No datasets available for event log SQL generation"
+        
+        # This would be enhanced with actual event detection logic
+        # For now, fall back to existing SQL generation
+        return self._generate_working_sql(datasets)
 
     def _convert_numpy_types(self, obj):
         """Recursively convert numpy types to Python native types for YAML serialization."""

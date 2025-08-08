@@ -515,27 +515,25 @@ def display_assessment_summary(assessment: dict) -> None:
     click.echo("� PROCESS MINING ASSESSMENT")
     click.echo("=" * 50)
     
-    # Show top candidates only
-    if assessment.get('case_id_candidates'):
-        top_case = assessment['case_id_candidates'][0]
-        col = top_case.get('column') or top_case.get('name')
-        click.echo(f"✅ Case ID: {col}")
-    else:
-        click.echo("❌ Case ID: Not found")
+    # Event-centric display - check both ai_insights and direct assessment
+    event_candidates = assessment.get('event_candidates', [])
     
-    if assessment.get('activity_candidates'):
-        top_activity = assessment['activity_candidates'][0]
-        col = top_activity.get('column') or top_activity.get('name')
-        click.echo(f"✅ Activity: {col}")
-    else:
-        click.echo("❌ Activity: Not found")
+    # Also check in ai_insights section
+    ai_insights = assessment.get('ai_insights', {})
+    if not event_candidates and ai_insights:
+        event_candidates = ai_insights.get('event_candidates', [])
     
-    if assessment.get('timestamp_candidates'):
-        top_timestamp = assessment['timestamp_candidates'][0]
-        col = top_timestamp.get('column') or top_timestamp.get('name')
-        click.echo(f"✅ Timestamp: {col}")
+    if event_candidates:
+        # Show best event structure
+        best_event = event_candidates[0]
+        confidence = int(best_event.get('confidence', 0) * 100)
+        click.echo(f"✅ Complete Events Found: {len(event_candidates)} structure(s)")
+        click.echo(f"   Best Event: {best_event.get('case_id_column')} + {best_event.get('activity_column')} + {best_event.get('timestamp_column')}")
+        click.echo(f"   Confidence: {confidence}%")
+        click.echo(f"   Description: {best_event.get('event_description', 'Event structure detected')}")
     else:
-        click.echo("❌ Timestamp: Not found")
+        click.echo("❌ Complete Events: Not found")
+        click.echo("   Need: Case ID + Activity + Timestamp together")
     
     # Simple readiness
     readiness = assessment.get('readiness', {})
