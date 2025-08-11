@@ -145,6 +145,21 @@ python -m src.main assess --schema-files schema1.xsd schema2.sql --data-files da
 python -m src.main assess --data-files data.xlsx --context business_rules.txt --output-name "Full_Analysis"
 ```
 
+## Recent Updates
+
+### Features Added
+- **Readiness Score Calculation**: A weighted average of event completeness, temporal coverage, and case ID quality.
+- **YAML Output Restructuring**: Improved clarity with readiness status, success metrics, and actionable recommendations.
+- **Enhanced AI Prompt**: Better process identification by detecting patterns like approval workflows and incident management.
+
+### File Cleanup
+- Removed unused scripts: `create_test_excel.py`, `excel_multitab_solution.py`.
+- Deleted redundant test data files: `test_data.csv`, `test_event_data.csv`.
+
+### Usage
+- Refer to the `docs/user_guide.md` for detailed instructions.
+- Logs are stored in the `logs/` directory for debugging and analysis.
+
 ## Development
 
 ### Setting up development environment

@@ -218,3 +218,6 @@ results/
 # Temporary files
 *.tmp
 *.temp
+
+# Ignore temporary files
+temp_context.txt

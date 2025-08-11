@@ -425,11 +425,6 @@ def interactive() -> None:
         type=str
     )
     
-    # Create temporary context file
-    context_file = "temp_context.txt"
-    with open(context_file, 'w', encoding='utf-8') as f:
-        f.write(context_text)
-    
     # Run assessment
     try:
         assess.callback(
@@ -437,13 +432,12 @@ def interactive() -> None:
             schema=None,
             schema_files=(),
             directory=None,
-            context=context_file,
+            context=None,
             output=output_file
         )
-    finally:
-        # Clean up temporary file
-        if Path(context_file).exists():
-            Path(context_file).unlink()
+    except Exception as e:
+        click.echo(f"Error running assessment: {e}")
+        logger.error(f"Error in interactive mode: {e}")
 
 
 @cli.command()

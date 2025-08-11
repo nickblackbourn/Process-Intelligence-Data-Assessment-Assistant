@@ -844,6 +844,16 @@ class EventLogAnalyzer:
             'missing_elements': missing
         }
     
+    def _calculate_readiness_score(self, event_completeness: float, temporal_coverage: float, case_id_quality: float) -> float:
+        """Calculate readiness score based on key metrics."""
+        # Weighted average of key metrics
+        readiness_score = (
+            event_completeness * 0.5 +  # Event completeness is most important
+            temporal_coverage * 0.3 +  # Temporal coverage is secondary
+            case_id_quality * 0.2      # Case ID quality is least important
+        )
+        return round(readiness_score, 1)
+    
     def _compile_attributes(
         self,
         datasets: List[Dict[str, Any]],
@@ -1217,6 +1227,19 @@ WHERE e.event_time IS NOT NULL
 ORDER BY e.case_id, e.event_time;
 """
         return sql
+    
+    def generate_yaml_output(self, readiness_score: float, success_metrics: dict, recommendations: list) -> str:
+        """Generate structured YAML output for assessment results."""
+        import yaml
+
+        output = {
+            "readiness_status": "Ready" if readiness_score >= 0.8 else "Needs Improvement",
+            "readiness_score": readiness_score,
+            "success_metrics": success_metrics,
+            "recommendations": recommendations,
+        }
+
+        return yaml.dump(output, default_flow_style=False)
     
     def _analyze_activity_patterns(self, data: pd.DataFrame, activity_col: str) -> List[Dict[str, Any]]:
         """Analyze patterns in activity data."""

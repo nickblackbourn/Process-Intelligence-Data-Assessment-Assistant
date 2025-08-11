@@ -176,3 +176,7 @@ The modular design allows easy extension:
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Recent Changes
+- Removed unused scripts and redundant test data files.
+- Enhanced AI prompt for better process identification.
