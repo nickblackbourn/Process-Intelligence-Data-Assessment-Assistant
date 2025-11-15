@@ -1,5 +1,7 @@
 # Process Mining Event Log Assessment Assistant
 
+> **⚠️ WORK IN PROGRESS** - This repository is currently under active development. Features, documentation, and APIs may change without notice. While the tool is functional for basic process mining assessments, some advanced features are still being refined. Please check back regularly for updates or feel free to contribute to the project's development.
+
 A comprehensive Python tool designed to help process mining consultants efficiently assess and prepare data from various source systems to create high-quality event logs for process mining analysis.
 
 ## 🚀 **Version 2.0 - Enhanced Multi-Tab Excel & Output Management**
